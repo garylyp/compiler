@@ -42,9 +42,11 @@ class Lexer:
     def flush(self):
         if self.buffer:
             self.tokens.append(self.buffer)
-            print(self.buffer, end =' ')
-            sys.stdout.flush()
+            res = self.buffer
+            # print(self.buffer, end =' ')
+            # sys.stdout.flush()
         self.buffer = ""
+        return res
     
     def next_char(self):
         char = self.f.read(1)
@@ -69,7 +71,7 @@ class Lexer:
                 
                 elif char in MONO_LITERAL:
                     self.buffer += char
-                    self.flush()
+                    yield self.flush()
                     char = self.next_char()
                     
                 elif char in NAME_START:
@@ -116,7 +118,7 @@ class Lexer:
                     self.buffer += char
                     char = self.next_char()
                 else:
-                    self.flush()
+                    yield self.flush()
                     self.state = STATE_START
 
             elif self.state == STATE_DIGIT:
@@ -127,7 +129,7 @@ class Lexer:
                     print(f"Lex Error: Unexpected char \"{char}\" in digit literal")
                     self.exit(1)
                 else:
-                    self.flush()
+                    yield self.flush()
                     self.state = STATE_START
                     
 
@@ -135,10 +137,10 @@ class Lexer:
             elif self.state == STATE_COMP:
                 if char == "=":
                     self.buffer += char
-                    self.flush()
+                    yield self.flush()
                     char = self.next_char()
                 else:
-                    self.flush()
+                    yield self.flush()
                 self.state = STATE_START
 
             # Expects "||"
@@ -147,7 +149,7 @@ class Lexer:
                     print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
                     self.exit(1)
                 self.buffer += char
-                self.flush()
+                yield self.flush()
                 char = self.next_char()
                 self.state = STATE_START
 
@@ -157,7 +159,7 @@ class Lexer:
                     print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
                     self.exit(1)
                 self.buffer += char
-                self.flush()
+                yield self.flush()
                 char = self.next_char()
                 self.state = STATE_START
 
@@ -168,7 +170,7 @@ class Lexer:
                     self.state = STATE_STRING_ESCAPE
                 elif char == DOUBLE_QUOTE:
                     self.buffer += char
-                    self.flush()
+                    yield self.flush()
                     char = self.next_char()
                     self.state = STATE_START
                 elif char in ["\n", "\r"]: # TODO: WHat is excluding backslash and double quote???
@@ -198,7 +200,7 @@ class Lexer:
                     self.state = STATE_COMMENT
                 # Divide symbol - treat as mono literal
                 else:
-                    self.flush()
+                    yield self.flush()
                     self.state = STATE_START
 
             elif self.state == STATE_COMMENT:
@@ -233,7 +235,7 @@ class Lexer:
 
 
         if self.buffer:
-            self.flush()
+            yield self.flush()
 
         if self.state != STATE_START:
             print(f"Lex Error: Unable to close final token \"{self.buffer}\" at state {self.state}")
@@ -258,6 +260,9 @@ if __name__ == '__main__':
         exit(1)
 
     lexer = Lexer()
-    lexer.scan(f)
-
+    gen = lexer.scan(f)
+    for token in gen:
+        print(token, end=' ')
+        sys.stdout.flush()
+    print()
     f.close()
