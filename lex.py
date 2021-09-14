@@ -58,7 +58,6 @@ class Lexer:
 
     def exit(self, code):
         print(f"Exit after line {self.lineno}")
-        print(self.tokens)
         exit(code)
 
     def scan(self, f):
@@ -89,15 +88,29 @@ class Lexer:
                     self.buffer += char
                     char = self.next_char()
                     
-                elif char == AND:
-                    self.state == STATE_AND
-                    self.buffer += char
-                    char = self.next_char()
-
                 elif char == BAR:
                     self.state = STATE_BAR
                     self.buffer += char
                     char = self.next_char()
+                    if char != "|":
+                        print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
+                        self.exit(1)
+                    self.buffer += char
+                    yield self.flush()
+                    char = self.next_char()
+                    self.state = STATE_START
+
+                elif char == AND:
+                    self.state == STATE_AND
+                    self.buffer += char
+                    char = self.next_char()
+                    if char != "&":
+                        print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
+                        self.exit(1)
+                    self.buffer += char
+                    yield self.flush()
+                    char = self.next_char()
+                    self.state = STATE_START
 
                 elif char == DOUBLE_QUOTE:
                     self.state = STATE_STRING
@@ -143,25 +156,25 @@ class Lexer:
                     yield self.flush()
                 self.state = STATE_START
 
-            # Expects "||"
-            elif self.state == STATE_BAR:
-                if char != "|":
-                    print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
-                    self.exit(1)
-                self.buffer += char
-                yield self.flush()
-                char = self.next_char()
-                self.state = STATE_START
+            # # Expects "||"
+            # elif self.state == STATE_BAR:
+            #     if char != "|":
+            #         print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
+            #         self.exit(1)
+            #     self.buffer += char
+            #     yield self.flush()
+            #     char = self.next_char()
+            #     self.state = STATE_START
 
-            # Expects "&&"
-            elif self.state == STATE_AND:
-                if char != "&":
-                    print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
-                    self.exit(1)
-                self.buffer += char
-                yield self.flush()
-                char = self.next_char()
-                self.state = STATE_START
+            # # Expects "&&"
+            # elif self.state == STATE_AND:
+            #     if char != "&":
+            #         print(f"Lex Error: Unable to recognize token \"{self.buffer}\"")
+            #         self.exit(1)
+            #     self.buffer += char
+            #     yield self.flush()
+            #     char = self.next_char()
+            #     self.state = STATE_START
 
             elif self.state == STATE_STRING:
                 if char == "\\":
@@ -191,7 +204,8 @@ class Lexer:
 
             elif self.state == STATE_SINGLE_SLASH:
                 if char in ["/", "*"]:
-                    self.buffer = self.buffer[:-1]
+                    # Remove the divide symbol
+                    self.buffer = self.buffer[:-1] 
                     if char == "/":
                         self.comment_state[0] = True
                     elif char == "*":
@@ -204,31 +218,30 @@ class Lexer:
                     self.state = STATE_START
 
             elif self.state == STATE_COMMENT:
-                if char == "\n" and self.comment_state[0]:
+                if char == "\n" and self.comment_state[0] and not self.comment_state[1]:
                     self.comment_state[0] = False
                     char = self.next_char()
-                    if not self.comment_state[1]:
-                        self.state = STATE_START
+                    self.state = STATE_START
+
+                elif char == "\n" and self.comment_state[0] and self.comment_state[1]:
+                    print("Lex Error: Inappropriate paired /* */ nested within single line comment")
+                    self.exit(1)
                 
                 elif char == "*" and self.comment_state[1]:
                     char = self.next_char()
                     if char == "/":
-                        if self.comment_state[1][-1] == "/*":
-                            self.comment_state[1].pop()
-                        else:
-                            print("Lex Error: Unexpected end of comment symbol */")
-                            self.exit(1)
+                        self.comment_state[1].pop()
                         char = self.next_char()
-                        if not self.comment_state[0] and not self.comment_state[1]:
+                        if not self.comment_state[1]:
                             self.state = STATE_START
 
                 else:
                     if char == "/":
                         char = self.next_char()
-                        if char == "/":
-                            self.comment_state[0] = True
-                        elif char == "*":
-                            self.comment_state[1].append("/*")
+                        # if char == "/":
+                        #     self.comment_state[0] = True
+                        if char == "*":
+                            self.comment_state[1].append("/*") # must be matched accordingly
                     
                     char = self.next_char()
                     
@@ -264,5 +277,5 @@ if __name__ == '__main__':
     for token in gen:
         print(token, end=' ')
         sys.stdout.flush()
-    print()
+    print(len(lexer.tokens))
     f.close()

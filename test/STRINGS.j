@@ -27,11 +27,11 @@ class Dummy {
    Dummy j;
     // this is a single line // comment with /* a nested //comment */
    Int dummy() {
-       // this singl/*e line*/ comment /* overlaps with a multi line
+       // this singl/*e line*/ comment /* overlaps with a multi line */ 
       Bool i;
-       comment */ 
+          // comment 
       Bool j;
-      /* this multi line comment stops halfway // but single line comment ends */ end of the line
+      /* this multi line comment stops halfway // but single line comme/*nt ends */ end of the line */
       return i ;
    }
 
