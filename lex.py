@@ -41,7 +41,7 @@ class Lexer:
 
     def flush(self):
         if self.buffer:
-            self.tokens.append(self.buffer)
+            self.tokens.append(str(self.buffer))
             res = self.buffer
             # print(self.buffer, end =' ')
             # sys.stdout.flush()
@@ -194,7 +194,7 @@ class Lexer:
                     char = self.next_char()
             
             elif self.state == STATE_STRING_ESCAPE:
-                if char in ["\\", "n", "r", "t", "b", "\'", "\""]:
+                if char in ["\\", "n", "r", "t", "b", "\'", "\"", "x", "0"]:
                     self.buffer += char
                     char = self.next_char()
                     self.state = STATE_STRING
@@ -232,7 +232,7 @@ class Lexer:
                     if char == "/":
                         self.comment_state[1].pop()
                         char = self.next_char()
-                        if not self.comment_state[1]:
+                        if not (self.comment_state[0] or self.comment_state[1]):
                             self.state = STATE_START
 
                 else:
@@ -251,7 +251,7 @@ class Lexer:
             yield self.flush()
 
         if self.state != STATE_START:
-            print(f"Lex Error: Unable to close final token \"{self.buffer}\" at state {self.state}")
+            print(f"Lex Error: Unable to terminate final token \"{self.buffer}\" at state {self.state}")
             self.exit(1)
 
         # for t in self.tokens:

@@ -1,37 +1,68 @@
-class Main {
+class My_Main_0123 {
 
-Void main(Int i, Int a, Int b,Int d){
+   Void main(Int i2, String s2){
+      Dummy d;
+      d = new Dummy();
+      d.aa = new Apple();
+      d.bb = new Banana();
+      d.cc = new Color();
+      d.dd = new Dummy();
 
-   println(3 > -2 && false || true || h.dummy()  && true && false || true);
-   return;
+      d.aa.seeds = 0;
+      d.aa.color = d.cc;
+      d.dd = d.init(d.aa, d.bb, d.cc, d.dd, d.aa.seeds, d.aa.isRipe && d.aa.isRipe);
+      return;
+   }
+
 }
 
+class Apple {
+   Int seeds;
+   Color color;
+   Bool isRipe;
+}
+
+class Banana {
+   // Empty body
+}
+
+class Color {
+   String red() {
+      return "red";
+   }
+   Bool canMix(Bool y, Int z) {
+      return !false;
+   }
 }
 
 
 class Dummy {
-   Dummy j;
-   Dummy init(Int a, Bool b, Void c, String d, Dummy e) {
-      if (a + e.dummmy() - 3 > a + a - 3000 * a + a - a / a) {
-         return null;
-      } else {
-         println(c);
-         readln(d);
-         return e.init(a, false, c, d + d + d, new Dummy());
-      }
-   }
-   Int dummy() {
-      Bool c;
-      Int e;
-      Void g;
-      String s;
-      Dummy h;
+   Apple aa;
+   Banana bb;
+   Color cc;
+   Dummy dd;
 
-      Bool i;
-      Bool j;
-      j.dummy();
-      return 1 + 30892 - 282 - -2132 * -j.ss(x + "hello") / 6681;
-      readln ( e );
+   Dummy init(Apple a, Banana b, Color c, Dummy d, Int e, Bool f) {
+      Dummy gg;
+      if (e + d.aa.seeds + a.seeds > e + e - 02 * e + e - e / e) {
+         gg = null;
+         return this.dd;
+      } else {
+         gg = new Dummy();
+         gg.aa=a;
+         gg.bb=b;
+         gg.cc=c;
+         gg.dd=this;
+         gg.aa.seeds=e+2;
+         gg.aa.isRipe=f;
+         gg.aa.color=gg.cc;
+      }
+      return gg;
+   }
+   Bool dummy() {
+      readln ( s );
       println(1+2);
+      this.cc = null;
+      return this.aa.color.canMix(this.aa.color.canMix(!true, -1), this.aa.color.canMix(false, 1));
    }
 }

@@ -8,7 +8,25 @@ import time
 from typing import Generator, List
 from lex import Lexer
 
-debug = False
+debug = 0
+
+class PNode:
+    """
+    Represents a node in the parse tree
+    """
+    def __init__(self, value):
+        self.value = value
+        self.children = []
+
+    def addChild(self, item):
+        self.children.append(item)
+
+    def clear(self):
+        """
+        Remove all children
+        """
+        self.children = []
+
 
 class Parser:
 
@@ -48,13 +66,34 @@ class Parser:
         self.n = len(self.tokens)
         self.i = -1
 
+    def printTree(self):
+        """
+        Prints the parse tree
+        """
+        if self.root is None:
+            print("No tree constructed")
+            return
+
+        # DFS
+        stk = [[self.root, 0]]
+        while stk:
+            node, ht = stk.pop()
+            children = ""
+            for c in node.children[::-1]:
+                if isinstance(c, PNode):
+                    children = f'[{c.value}] ' + children
+                    stk.append([c, ht+1])
+                else:
+                    children = f'{c} ' + children
+            print(f'{ht * " "}[{node.value}]: {children}')
+
     def nextToken(self):
         """
         Updates self.token with the next token from the stream
         """
         self.i += 1
-        if self.i >= self.n - 1:
-            print("No more tokens")
+        if self.i > self.n - 1:
+            if debug: print("No more tokens")
             return
         self.token = self.tokens[self.i]
 
@@ -168,7 +207,7 @@ class Parser:
         """
         if self.accept(expected):
             if debug:
-                print(f'Expected {expected} sees {self.token} ')
+                print(f'Expected {expected} sees {self.token}')
                 # time.sleep(1)
             currToken = self.token
             self.nextToken()
@@ -177,10 +216,10 @@ class Parser:
             self.error(expected)
 
     def error(self, *expected):
-        print(f'Expected {list(expected)} but encountered \"{self.token}\"')
-        # for i in range(len(self.stack)):
-        #     print(f'{i * " "}{self.stack[i]}')
-        print(self.debugOutput)
+        if debug > 1:
+            # print(self.debugOutput)
+            self.printTree()
+        print(f'Error: Expected {list(expected)} but encountered \"{self.token}\"')
         exit(1)
 
 
@@ -197,253 +236,291 @@ class Parser:
 
     def parseCname(self):
         self.pushSymbol("Cname")
+        node = PNode(self.stack[-1])
         if self.accept("_cname"):
-            self.expect(self.token)
+            node.addChild(self.expect(self.token))
         else:
             self.error("cname")
         self.popSymbol()
+        return node
 
     def parseId(self):
         self.pushSymbol("Id")
+        node = PNode(self.stack[-1])
         if self.accept("_id"):
-            self.expect(self.token)            
+            node.addChild(self.expect(self.token))
         else:
             self.error("id")
         self.popSymbol()
+        return node
 
     def parseType(self):
         self.pushSymbol("Type")
+        node = PNode(self.stack[-1])
         if self.accept("Int"):
-            self.expect("Int")
+            node.addChild(self.expect("Int"))
         elif self.accept("Bool"):
-            self.expect("Bool")
+            node.addChild(self.expect("Bool"))
         elif self.accept("String"):
-            self.expect("String")
+            node.addChild(self.expect("String"))
         elif self.accept("Void"):
-            self.expect("Void")
+            node.addChild(self.expect("Void"))
         elif self.accept("_cname"):
-            self.parseCname()
+            node.addChild(self.parseCname())
         else:
             self.error("Int", "Bool", "String", "Void", "_cname")
         self.popSymbol()
+        return node
         
 
     
     def parseProgram(self):
         self.pushSymbol("Program")
-        self.parseMainClass()
+        node = PNode(self.stack[-1])
+        self.root = node
+        node.addChild(self.parseMainClass())
         while self.token == "class":
-            self.parseClassDecl()
+            node.addChild(self.parseClassDecl())
         self.popSymbol()
+        return node
 
     def parseMainClass(self):
         self.pushSymbol("MainClass")
+        node = PNode(self.stack[-1])
         if self.accept("class"):
-            self.expect("class")
-            self.parseCname()
-            self.expect("{")
-            self.expect("Void")
-            self.expect("main")
-            self.expect("(")
+            node.addChild(self.expect("class"))
+            node.addChild(self.parseCname())
+            node.addChild(self.expect("{"))
+            node.addChild(self.expect("Void"))
+            node.addChild(self.expect("main"))
+            node.addChild(self.expect("("))
             # Parse FmlList
             while not self.accept(")"):
-                self.parseFml()
+                node.addChild(self.parseFml())
                 if not self.accept(")"):
-                    self.expect(",")
-            self.expect(")")
-            self.parseMdBody()
-            self.expect("}")
+                    node.addChild(self.expect(","))
+            node.addChild(self.expect(")"))
+            node.addChild(self.parseMdBody())
+            node.addChild(self.expect("}"))
         else:
             self.error("class")
         self.popSymbol()
+        return node
 
     def parseClassDecl(self):
         self.pushSymbol("ClassDecl")
+        node = PNode(self.stack[-1])
         if self.accept("class"):
-            self.expect("class")
-            self.parseCname()
-            self.expect("{")
+            node.addChild(self.expect("class"))
+            node.addChild(self.parseCname())
+            node.addChild(self.expect("{"))
 
             # Peek to avoid unnecessary backtracking
             while self.accept("_type") and self.acceptOffset("_id", 1) and self.acceptOffset(";", 2):
-                self.parseVarDecl()
+                node.addChild(self.parseVarDecl())
             
             while not self.accept("}"):
-                self.parseMdDecl()
+                node.addChild(self.parseMdDecl())
             
-            self.expect("}")
+            node.addChild(self.expect("}"))
         else:
             self.error("class")
         self.popSymbol()
+        return node
     
     def parseVarDecl(self):
         self.pushSymbol("VarDecl")
-        self.parseType()
-        self.parseId()
-        self.expect(";")
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseType())
+        node.addChild(self.parseId())
+        node.addChild(self.expect(";"))
         self.popSymbol()
+        return node
 
     def parseMdDecl(self):
         self.pushSymbol("MdDecl")
-        self.parseType()
-        self.parseId()
-        self.expect("(")
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseType())
+        node.addChild(self.parseId())
+        node.addChild(self.expect("("))
         # Parse FmlList
         while not self.accept(")"):
-            self.parseFml()
+            node.addChild(self.parseFml())
             if not self.accept(")"):
-                self.expect(",")
-        self.expect(")")
-        self.parseMdBody()
+                node.addChild(self.expect(","))
+        node.addChild(self.expect(")"))
+        node.addChild(self.parseMdBody())
         self.popSymbol()
+        return node
 
     def parseFml(self):
         self.pushSymbol("Fml")
-        self.parseType()
-        self.parseId()
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseType())
+        node.addChild(self.parseId())
         self.popSymbol()
+        return node
 
 
     def parseMdBody(self):
         self.pushSymbol("MdBody")
-        self.expect("{")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("{"))
         while self.accept("_type") and self.acceptOffset("_id", 1) and self.acceptOffset(";", 2):
-            self.parseVarDecl()
-        self.parseStmt()
+            node.addChild(self.parseVarDecl())
+        node.addChild(self.parseStmt())
         while not self.accept("}"):
-            self.parseStmt()
-        self.expect("}")
+            node.addChild(self.parseStmt())
+        node.addChild(self.expect("}"))
         self.popSymbol()
+        return node
 
     def parseStmt(self):
         self.pushSymbol("Stmt")
+        node = PNode(self.stack[-1])
         if self.accept("if"):
-            self.parseStmtIf()
+            node.addChild(self.parseStmtIf())
         elif self.accept("while"):
-            self.parseStmtWhile()
+            node.addChild(self.parseStmtWhile())
         elif self.accept("readln"):
-            self.parseStmtReadln()
+            node.addChild(self.parseStmtReadln())
         elif self.accept("println"):
-            self.parseStmtPrintln()
-        elif self.accept("_id") and self.acceptOffset("=", 1):
-            self.parseId()
-            self.parseAssignRight()
+            node.addChild(self.parseStmtPrintln())
+        # elif self.accept("_id") and self.acceptOffset("=", 1): # case already covered by _atom
+        #     self.parseId()
+        #     self.parseAssignRight()
         elif self.accept("return"):
-            self.parseStmtReturn()
+            node.addChild(self.parseStmtReturn())
         elif self.accept("_atom"):
-            self.parseAtom()
+            node.addChild(self.parseAtom())
             if self.accept("="):
-                self.parseAssignRight()
+                node.addChild(self.parseAssignRight())
             elif self.accept(";"):
-                self.expect(";")
+                node.addChild(self.expect(";"))
             else:
                 self.error("=", ";")
         else:
             self.error("Stmt")
         self.popSymbol()
+        return node
 
     def parseStmtIf(self):
         self.pushSymbol("StmtIf")
-        self.expect("if")
-        self.expect("(")
-        self.parseExp()
-        self.expect(")")
-        self.expect("{")
-        self.parseStmt()
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("if"))
+        node.addChild(self.expect("("))
+        node.addChild(self.parseExp())
+        node.addChild(self.expect(")"))
+        node.addChild(self.expect("{"))
+        node.addChild(self.parseStmt())
         while not self.accept("}"):
-            self.parseStmt()
-        self.expect("}")
-        self.expect("else")
-        self.expect("{")
-        self.parseStmt()
+            node.addChild(self.parseStmt())
+        node.addChild(self.expect("}"))
+        node.addChild(self.expect("else"))
+        node.addChild(self.expect("{"))
+        node.addChild(self.parseStmt())
         while not self.accept("}"):
-            self.parseStmt()
-        self.expect("}")
+            node.addChild(self.parseStmt())
+        node.addChild(self.expect("}"))
         self.popSymbol()
+        return node
 
     def parseStmtWhile(self):
         self.pushSymbol("StmtWhile")
-        self.expect("while")
-        self.expect("(")
-        self.parseExp()
-        self.expect(")")
-        self.expect("{")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("while"))
+        node.addChild(self.expect("("))
+        node.addChild(self.parseExp())
+        node.addChild(self.expect(")"))
+        node.addChild(self.expect("{"))
         while not self.accept("}"):
-            self.parseStmt()
-        self.expect("}")
+            node.addChild(self.parseStmt())
+        node.addChild(self.expect("}"))
         self.popSymbol()
+        return node
 
     def parseStmtReadln(self):
         self.pushSymbol("StmtReadln")
-        self.expect("readln")
-        self.expect("(")
-        self.parseId()
-        self.expect(")")
-        self.expect(";")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("readln"))
+        node.addChild(self.expect("("))
+        node.addChild(self.parseId())
+        node.addChild(self.expect(")"))
+        node.addChild(self.expect(";"))
         self.popSymbol()
+        return node
 
     def parseStmtPrintln(self):
         self.pushSymbol("StmtPrintln")
-        self.expect("println")
-        self.expect("(")
-        self.parseExp()
-        self.expect(")")
-        self.expect(";")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("println"))
+        node.addChild(self.expect("("))
+        node.addChild(self.parseExp())
+        node.addChild(self.expect(")"))
+        node.addChild(self.expect(";"))
         self.popSymbol()
+        return node
 
     def parseAssignRight(self):
         """
         Return root node and right child
         """
         self.pushSymbol("StmtAssign")
-        self.expect("=")
-        self.parseExp()
-        self.expect(";")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("="))
+        node.addChild(self.parseExp())
+        node.addChild(self.expect(";"))
         self.popSymbol()
+        return node
     
     def parseStmtReturn(self):
         self.pushSymbol("StmtReturn")
-        self.expect("return")
+        node = PNode(self.stack[-1])
+        node.addChild(self.expect("return"))
         if not self.accept(";"):
-            self.parseExp()
-        self.expect(";")
+            node.addChild(self.parseExp())
+        node.addChild(self.expect(";"))
         self.popSymbol()
+        return node
 
     def parseAtom(self):
         self.pushSymbol("Atom")
+        node = PNode(self.stack[-1])
         if self.accept("this"):
-            self.expect("this")
+            node.addChild(self.expect("this"))
         elif self.accept("new"):
-            self.expect("new")
-            self.parseCname()
-            self.expect("(")
-            self.expect(")")
+            node.addChild(self.expect("new"))
+            node.addChild(self.parseCname())
+            node.addChild(self.expect("("))
+            node.addChild(self.expect(")"))
         elif self.accept("null"):
-            self.expect("null")
+            node.addChild(self.expect("null"))
         elif self.accept("_id"):
-            self.parseId()
+            node.addChild(self.parseId())
         elif self.accept("("):
-            self.expect("(")
-            self.parseExp()
-            self.expect(")")
+            node.addChild(self.expect("("))
+            node.addChild(self.parseExp())
+            node.addChild(self.expect(")"))
         else:
             self.error("this", "_id", "new", "(", "null")
 
         while self.accept(".") or self.accept("("):
             if self.accept("."):
-                self.expect(".")
-                self.parseId()
+                node.addChild(self.expect("."))
+                node.addChild(self.parseId())
             elif self.accept("("):
-                self.expect("(")
+                node.addChild(self.expect("("))
                 while not self.accept(")"):
-                    self.parseExp()
+                    node.addChild(self.parseExp())
                     if self.accept(","):
-                        self.expect(",")
-                self.expect(")")
+                        node.addChild(self.expect(","))
+                node.addChild(self.expect(")"))
         self.popSymbol()
+        return node
 
     def parseExp(self):
         self.pushSymbol("Exp")
+        node = PNode(self.stack[-1])
         startIdx = int(self.i)
         
         STATE_STRING = 1 << 0
@@ -453,43 +530,47 @@ class Parser:
         
         if self.accept("_string") or self.accept("_atom"):
             if self.accept("_string"):
-                self.expect("_string")
+                node.addChild(self.expect("_string"))
                 state &= STATE_STRING 
 
             elif self.accept("_atom"):
-                self.parseAtom()
+                node.addChild(self.parseAtom())
 
             while self.accept("+"):
-                self.expect("+")
+                node.addChild(self.expect("+"))
                 if self.accept("_string"):
-                    self.expect("_string")
+                    node.addChild(self.expect("_string"))
                     state &= STATE_STRING 
 
                 elif self.accept("_atom"):
-                    self.parseAtom()
+                    node.addChild(self.parseAtom())
 
                 # StringExp AND purely add on atoms MathExp guaranteed to terminate here
                 
                 elif self.accept("_factor"):
-                    print("Backtrack to MathExp")
+                    if debug: print("Backtrack to MathExp")
                     self.setToken(startIdx)
+                    node.clear()
                     state &= (STATE_MATH + STATE_BOOL) 
                     break
 
                 elif self.accept("_bool"):
-                    print("Backtrack to BoolExp")
+                    if debug: print("Backtrack to BoolExp")
                     self.setToken(startIdx)
+                    node.clear()
                     state &= STATE_BOOL
                     break
             
             if self.accept("_mathOp"):
-                print("Backtrack to MathExp")
+                if debug: print("Backtrack to MathExp")
                 self.setToken(startIdx)
+                node.clear()
                 state &= (STATE_MATH + STATE_BOOL) 
             
             elif self.accept("_binaryOp") or self.accept("_boolOp"):
-                print("Backtrack to BoolExp")
+                if debug: print("Backtrack to BoolExp")
                 self.setToken(startIdx)
+                node.clear()
                 state = STATE_BOOL
 
             elif self.accept("_followExp"):
@@ -502,10 +583,11 @@ class Parser:
             state &= STATE_BOOL 
 
         if state == (STATE_MATH + STATE_BOOL):
-            self.parseMathExp()
+            node.addChild(self.parseMathExp())
             if self.accept("_binaryOp"):
-                print("Backtrack to BoolExp")
+                if debug: print("Backtrack to BoolExp")
                 self.setToken(startIdx)
+                node.clear()
                 state = STATE_BOOL
             elif self.accept("_followExp"):
                 state = STATE_MATH
@@ -513,7 +595,7 @@ class Parser:
                 self.error("_binaryOp", "_followExp")
         
         if state == STATE_BOOL:
-            self.parseBoolExp()
+            node.addChild(self.parseBoolExp())
         
         if state == (STATE_STRING + STATE_MATH + STATE_BOOL):
             # Probably just an atom
@@ -528,95 +610,110 @@ class Parser:
 
         # at the end, you must assign a type to  the expression
         self.popSymbol()
+        return node
 
     def parseMathExp(self):
         """
         MathExp === AExp 
         """
         self.pushSymbol("MathExp")
-        self.parseTerm()
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseTerm())
         while self.accept("+") or self.accept("-"): 
             if self.accept("+"):
-                self.expect("+")
+                node.addChild(self.expect("+"))
             elif self.accept("-"):
-                self.expect("-")
-            self.parseTerm()
+                node.addChild(self.expect("-"))
+            node.addChild(self.parseTerm())
         self.popSymbol()
+        return node
     
     def parseTerm(self):
         self.pushSymbol("Term")
-        self.parseFactor()
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseFactor())
         while self.accept("*") or self.accept("/"): 
             if self.accept("*"):
-                self.expect("*")
+                node.addChild(self.expect("*"))
             elif self.accept("/"):
-                self.expect("/")
-            self.parseFactor()
+                node.addChild(self.expect("/"))
+            node.addChild(self.parseFactor())
         self.popSymbol()
+        return node
         
     def parseFactor(self):
         self.pushSymbol("Factor")
+        node = PNode(self.stack[-1])
         while self.accept("-"): 
             # Negation
-            self.expect("-")
+            node.addChild(self.expect("-"))
         if self.accept("_integer"):
-            self.expect("_integer")
+            node.addChild(self.expect("_integer"))
         elif self.accept("_atom"):
-            self.parseAtom()
+            node.addChild(self.parseAtom())
         else:
             self.error("_integer", "_atom")
         self.popSymbol()
+        return node
 
     def parseBoolExp(self):
         """
         BoolExp === BExp
         """
         self.pushSymbol("BoolExp")
-        self.parseConj()
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseConj())
         while self.accept("||"):
-            self.expect("||")
-            self.parseConj()
+            node.addChild(self.expect("||"))
+            node.addChild(self.parseConj())
         self.popSymbol()
+        return node
 
     def parseConj(self):
         self.pushSymbol("Conj")
-        self.parseRelExp()
+        node = PNode(self.stack[-1])
+        node.addChild(self.parseRelExp())
         while self.accept("&&"):
-            self.expect("&&")
-            self.parseRelExp()
+            node.addChild(self.expect("&&"))
+            node.addChild(self.parseRelExp())
         self.popSymbol()
+        return node
 
     def parseRelExp(self):
         """
         RelExp === RExp
         """
         self.pushSymbol("RelExp")
+        node = PNode(self.stack[-1])
         canMathExp = True
 
         # BGrd
         while self.accept("!"):
-            self.expect("!")
+            node.addChild(self.expect("!"))
             canMathExp = False
 
         if self.accept("true"):
-            self.expect("true")
+            node.addChild(self.expect("true"))
         elif self.accept("false"):
-            self.expect("false")
+            node.addChild(self.expect("false"))
         elif self.accept("_atom") and not canMathExp:
-            self.parseAtom()
+            node.addChild(self.parseAtom())
         elif self.accept("_atom"):
             startIdx = int(self.i)
-            self.parseAtom()
+            node.addChild(self.parseAtom())
             
             if self.accept("_mathOp") or self.accept("_binaryOp"):
+                if debug: print("Backtrack to MathExp")
                 self.setToken(startIdx)
+                node.clear()
 
         if (self.accept("_factor") or self.accept("_atom")) and canMathExp:
-            self.parseMathExp()
-            self.expect("_binaryOp")
-            self.parseMathExp()
+            node.addChild(self.parseMathExp())
+            node.addChild(self.expect("_binaryOp"))
+            node.addChild(self.parseMathExp())
 
         self.popSymbol()
+        return node
 
 
 
@@ -635,10 +732,14 @@ if __name__ == '__main__':
         exit(1)
 
     if len(sys.argv) > 2:
-        debug = "d" in sys.argv[2]
+        debug = int(sys.argv[2])
 
     p = Parser(f)
     p.parse()
-
-
     f.close()
+    
+    if p.i < len(p.tokens):
+        if debug: p.printTree()
+        print(f'Error: tokens remaining after parsing completed: {p.tokens[p.i:]}')
+    else:
+        p.printTree()

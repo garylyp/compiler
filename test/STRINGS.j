@@ -1,6 +1,6 @@
 class Main {
 
-Void main(Int i, Int a, Int b,Int d){
+Void main() {
 
    while(true){
 
@@ -8,7 +8,7 @@ Void main(Int i, Int a, Int b,Int d){
 
       t1 = "t2" ;
       t3 = "t2" + t1 + "";
-      tw723b23 = "`1ijwi38mp?><,.{}[]~ 1234567890 \" \\ \n \r \\ \t \b ";
+      tw723b23 = "`1ijwi38mp?><,.{}[]~ 1234567890 */ // /* \" \\ \n \r \\ \t \b \x2b \035";
    }
 }
 
@@ -26,13 +26,14 @@ Void main(Int i, Int a, Int b,Int d){
 class Dummy {
    Dummy j;
     // this is a single line // comment with /* a nested //comment */
-   Int dummy() {
+   Bool dummy() {
        // this singl/*e line*/ comment /* overlaps with a multi line */ 
-      Bool i;
+      Int i;
           // comment 
       Bool j;
       /* this multi line comment stops halfway // but single line comme/*nt ends */ end of the line */
-      return i ;
+      Int k;
+      return i != k ---0;
    }
 
 }
