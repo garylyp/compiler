@@ -386,13 +386,30 @@ class Parser:
             node.addChild(self.parseStmtReadln())
         elif self.accept("println"):
             node.addChild(self.parseStmtPrintln())
-        # elif self.accept("_id") and self.acceptOffset("=", 1): # case already covered by _atom
-        #     self.parseId()
-        #     self.parseAssignRight()
+        elif self.accept("_id") and not self.accept("this") and \
+                not self.accept("null") and not self.accept("new") and \
+                self.acceptOffset("=", 1): 
+            self.parseId()
+            self.parseAssignRight()
         elif self.accept("return"):
             node.addChild(self.parseStmtReturn())
         elif self.accept("_atom"):
+            if (self.accept("null") or self.accept("this")) and self.acceptOffset("=", 1):
+                self.error("_atom . _id")
+
             node.addChild(self.parseAtom())
+            atomNode = node.children[-1]
+            if atomNode.children[0] == "(" and atomNode.children[-1] == ")":
+                self.error("_atom . _id")
+
+            if atomNode.children[0] == "new":
+                secondLast = atomNode.children[-2]
+                last = atomNode.children[-1]
+                if len(atomNode.children) < 6:
+                    self.error("_atom . _id")
+                if secondLast != "." or not isinstance(last, PNode) or last.value != "Id":
+                    self.error("_atom . _id")
+
             if self.accept("="):
                 node.addChild(self.parseAssignRight())
             elif self.accept(";"):
