@@ -118,7 +118,8 @@ class Parser:
         return re.match(r"[A-Z][A-Za-z0-9_]*", token) is not None
 
     def matchId(self, token):
-        return re.match(r"[a-z][A-Za-z0-9_]*", token) is not None
+        return token not in ["this", "new", "null","true","false"] and \
+            re.match(r"[a-z][A-Za-z0-9_]*", token) is not None
 
     def matchInteger(self, token):
         return re.match(r"[0-9]+", token) is not None
@@ -134,11 +135,13 @@ class Parser:
             self.matchCname(token)
 
     def matchAtom(self, token):
-        return token == "this" or \
+        return token != "true" and \
+            token != "false" and \
+            (token == "this" or \
             token == "new" or \
             token == "(" or \
             token == "null" or \
-            self.matchId(token)
+            self.matchId(token))
 
     def matchFactor(self, token):
         return self.matchInteger(token) or \
@@ -386,33 +389,36 @@ class Parser:
             node.addChild(self.parseStmtReadln())
         elif self.accept("println"):
             node.addChild(self.parseStmtPrintln())
-        elif self.accept("_id") and not self.accept("this") and \
-                not self.accept("null") and not self.accept("new") and \
-                self.acceptOffset("=", 1): 
-            self.parseId()
-            self.parseAssignRight()
+        elif self.accept("_id") and self.acceptOffset("=", 1): 
+            leftNode = self.parseId()
+            assignNode = self.parseAssignRight()
+            assignNode.children.insert(0, leftNode)
+            node.addChild(assignNode)
         elif self.accept("return"):
             node.addChild(self.parseStmtReturn())
         elif self.accept("_atom"):
-            if (self.accept("null") or self.accept("this")) and self.acceptOffset("=", 1):
-                self.error("_atom . _id")
-
-            node.addChild(self.parseAtom())
-            atomNode = node.children[-1]
-            if atomNode.children[0] == "(" and atomNode.children[-1] == ")":
-                self.error("_atom . _id")
-
+            atomNode = self.parseAtom()
             if atomNode.children[0] == "new":
-                secondLast = atomNode.children[-2]
-                last = atomNode.children[-1]
-                if len(atomNode.children) < 6:
-                    self.error("_atom . _id")
-                if secondLast != "." or not isinstance(last, PNode) or last.value != "Id":
-                    self.error("_atom . _id")
+                tail = atomNode.children[4:] # "new" cname "(" ")"
+            else:
+                tail = atomNode.children                
 
             if self.accept("="):
-                node.addChild(self.parseAssignRight())
+                if len(tail) < 3 or tail[-2] != "." or not isinstance(tail[-1], PNode) or tail[-1].value != "Id":
+                    # ... "." Id
+                    self.error("_atom . _id")
+                assignNode = self.parseAssignRight()
+                assignNode.children.insert(0, atomNode)
+                node.addChild(assignNode)
             elif self.accept(";"):
+                # atom cannot be just
+                # this, null, id, (Exp,Exp), new cname ()
+                if len(tail) < 3 or \
+                    tail[-3] != "(" or \
+                    not isinstance(tail[-2], PNode) or tail[-2].value != "ExpList" or \
+                    tail[-1] != ")":
+                    self.error("_atom ( ExpList )")
+                node.addChild(atomNode)
                 node.addChild(self.expect(";"))
             else:
                 self.error("=", ";")
@@ -527,11 +533,20 @@ class Parser:
                 node.addChild(self.parseId())
             elif self.accept("("):
                 node.addChild(self.expect("("))
-                while not self.accept(")"):
-                    node.addChild(self.parseExp())
-                    if self.accept(","):
-                        node.addChild(self.expect(","))
+                # Special case, only ExpList handled like this 
+                # because we need to verify pattern for stmts
+                node.addChild(self.parseExpList())
                 node.addChild(self.expect(")"))
+        self.popSymbol()
+        return node
+
+    def parseExpList(self):
+        self.pushSymbol("ExpList")
+        node = PNode(self.stack[-1])
+        while not self.accept(")"): # FOLLOW(ExpList)
+            node.addChild(self.parseExp())
+            if self.accept(","):
+                node.addChild(self.expect(","))
         self.popSymbol()
         return node
 
