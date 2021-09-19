@@ -3,8 +3,8 @@
 class Main {
 
     Void main(Int a){
-        (new Banana()).newBanana().a = a;   // OK
-        (new Banana()).newBanana() = a;     // NOT OK
+        (new Banana()).newBanana();   // OK
+        (new Banana());               // NOT OK
         return;
     }
 

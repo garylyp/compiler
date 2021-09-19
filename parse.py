@@ -4,7 +4,6 @@ from io import TextIOWrapper
 import re
 import string
 import sys
-import time
 from typing import Generator, List
 from lex import Lexer
 
@@ -222,6 +221,7 @@ class Parser:
         if debug > 1:
             # print(self.debugOutput)
             self.printTree()
+        # TODO: Print line number too (get from lexer)
         print(f'Error: Expected {list(expected)} but encountered \"{self.token}\"')
         exit(1)
 
@@ -398,10 +398,7 @@ class Parser:
             node.addChild(self.parseStmtReturn())
         elif self.accept("_atom"):
             atomNode = self.parseAtom()
-            if atomNode.children[0] == "new":
-                tail = atomNode.children[4:] # "new" cname "(" ")"
-            else:
-                tail = atomNode.children                
+            tail = atomNode.children                
 
             if self.accept("="):
                 if len(tail) < 3 or tail[-2] != "." or not isinstance(tail[-1], PNode) or tail[-1].value != "Id":
