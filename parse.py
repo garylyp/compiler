@@ -235,7 +235,8 @@ class Parser:
         self.stream = self.lex()
         self.clearStream()
         self.nextToken()
-        self.parseProgram()
+        node = self.parseProgram()
+        return node
 
     def parseCname(self):
         self.pushSymbol("Cname")
