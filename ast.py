@@ -44,6 +44,7 @@ EXP_FIELD = "ExpField"               # m.id
 EXP_LOCAL_CALL = "ExpLocalCall"      # id ( ExpList )
 EXP_GLOBAL_CALL = "ExpGlobalCall"    # m.id ( ExpList )
 EXP_NEW_CLASS = "ExpNewClass"        # new Object()
+EXP_NULL = "ExpNull"                 # null
 
 
 # Stmt / Exp Types
@@ -52,6 +53,9 @@ TYPE_BOOL = "Bool"
 TYPE_STRING = "String"
 TYPE_VOID = "Void"
 
+def errorF(msg):
+    print(msg)
+    exit(1)
 
 ################################################################################################
 
@@ -69,18 +73,24 @@ class TNode:
         self.attr = {}
 
 class ProgramNode(TNode):
+    classes:'list[ClassNode]'
+    mainClass:'ClassNode'
+
     def __init__(self):
         super().__init__(PROGRAM)
         self.mainClass = None
         self.classes = []
     
-    def setMainClass(self, classNode):
+    def setMainClass(self, classNode:'ClassNode'):
         self.mainClass = classNode
 
-    def addClass(self, classNode):
+    def addClass(self, classNode:'ClassNode'):
         self.classes.append(classNode)
 
 class ClassNode(TNode):
+    fields:'list[VariableNode]'
+    methods:'list[MethodNode]'
+
     def __init__(self):
         super().__init__(CLASS)
         self.fields = []
@@ -96,13 +106,17 @@ class ClassNode(TNode):
         self.methods.append(methodNode)
 
 class VariableNode(TNode):
-    def __init__(self, id, type):
+    def __init__(self, id:str, type:str):
         super().__init__(VARIABLE)
         self.id = id
         self.type = type
 
 class MethodNode(TNode):
-    def __init__(self, id, retType):
+    formals:'list[VariableNode]'
+    actuals:'list[VariableNode]'
+    stmts:'list[StmtNode]'
+
+    def __init__(self, id:str, retType:str):
         super().__init__(METHOD)
         self.id = id
         self.retType = retType
@@ -283,8 +297,8 @@ class ExpBoolBaseNode(ExpNode):
         super().__init__(EXP_BOOL_BASE)
         self.isNegated = False
     
-    def setNegated(self):
-        self.isNegated = True
+    def setNegated(self, isNegated):
+        self.isNegated = isNegated
 
     def setExp(self, expNode):
         self.exp = expNode
@@ -346,8 +360,8 @@ class ExpIntBaseNode(ExpNode):
         super().__init__(EXP_INT_BASE)
         self.isNegated = False
     
-    def setNegated(self):
-        self.isNegated = True
+    def setNegated(self, isNegated):
+        self.isNegated = isNegated
 
     def setExp(self, expNode):
         self.exp = expNode
@@ -422,8 +436,9 @@ class ExpNewClassNode(ExpNode):
     def __init__(self):
         super().__init__(EXP_NEW_CLASS)
 
-    def setCname(self, cname):
-        self.cname = cname
+class ExpNullNode(ExpNode):
+    def __init__(self):
+        super().__init__(EXP_NULL)
 
 ################################################################################################
 
@@ -437,13 +452,15 @@ class AST:
         self.root = self.constructAST(parseTree)
 
     def validate(self, expected, actual):
+        if isinstance(actual, PNode):
+            actual = actual.value
         if expected == actual:
             return
-        print(f'Expected {expected} node but got {actual}')
-        exit(1)
+        raise Exception(f'Expected {expected} node but got {actual}')
+        
 
     def constructAST(self, pNode:PNode):
-        self.validate("Program", pNode.value)
+        self.validate("Program", pNode)
         node = self.genProgram(pNode)
         return node
 
@@ -452,14 +469,14 @@ class AST:
         mainClassNode = self.genMainClass(pNode.children[0])
         tNode.setMainClass(mainClassNode)
         for i in range(1, len(pNode.children)):
-            self.validate("ClassDecl", pNode.children[i].value)
+            self.validate("ClassDecl", pNode.children[i])
             classNode = self.genClass(pNode.children[i])
             tNode.addClass(classNode)
         return tNode
 
     def genMainClass(self, pNode:PNode):
         tNode = ClassNode()
-        self.validate("Cname", pNode.children[1].value)
+        self.validate("Cname", pNode.children[1])
         cname = self.genCname(pNode.children[1])
         tNode.setCname(cname)
 
@@ -467,8 +484,17 @@ class AST:
         self.validate("main", pNode.children[4])
 
         mainMethodNode = MethodNode("main", "Void")
-        self.validate("MdBody", pNode.children[7].value)
-        mdBodyNode = pNode.children[7]
+        i = 6
+        while isinstance(pNode.children[i], PNode) and pNode.children[i].value == "Fml":
+            varNode = self.genVar(pNode.children[i])
+            mainMethodNode.addFormal(varNode)
+            i += 2
+        
+        if isinstance(pNode.children[i], str) and pNode.children[i] == ")":
+            i += 1
+
+        self.validate("MdBody", pNode.children[i])
+        mdBodyNode = pNode.children[i]
         i = 1 # i = 0 is the '{'
         while isinstance(mdBodyNode.children[i], PNode) and mdBodyNode.children[i].value == "VarDecl":
             varNode = self.genVar(mdBodyNode.children[i])
@@ -485,7 +511,7 @@ class AST:
 
     def genClass(self, pNode:PNode):
         tNode = ClassNode()
-        self.validate("Cname", pNode.children[1].value)
+        self.validate("Cname", pNode.children[1])
         cname = self.genCname(pNode.children[1])
         tNode.setCname(cname)
 
@@ -499,11 +525,13 @@ class AST:
             methodNode = self.genMethod(pNode.children[i])
             tNode.addMethod(methodNode)
             i += 1
+
+        return tNode
             
     def genMethod(self, pNode:PNode):
-        self.validate("MdDecl", pNode.value)
-        self.validate("Type", pNode.children[0].value)
-        self.validate("Id", pNode.children[1].value)
+        self.validate("MdDecl", pNode)
+        self.validate("Type", pNode.children[0])
+        self.validate("Id", pNode.children[1])
         methodType = self.genType(pNode.children[0])
         methodId = self.genId(pNode.children[1])
         tNode = MethodNode(methodId, methodType)
@@ -511,9 +539,8 @@ class AST:
         while isinstance(pNode.children[i], PNode) and pNode.children[i].value == "Fml":
             varNode = self.genVar(pNode.children[i])
             tNode.addFormal(varNode)
-            i += 1        
+            i += 2
 
-        i+=1
         mdBodyNode = pNode.children[i]
         i = 1 # i = 0 is the '{'
         while isinstance(mdBodyNode.children[i], PNode) and mdBodyNode.children[i].value == "VarDecl":
@@ -526,34 +553,36 @@ class AST:
             tNode.addStmt(stmtNode)
             i += 1
 
+        return tNode
+
 
     def genType(self, pNode:PNode) -> str:
-        self.validate("Type", pNode.value)
+        self.validate("Type", pNode)
         if isinstance(pNode.children[0], PNode):
-            self.validate("Cname", pNode.children[0].value)
+            self.validate("Cname", pNode.children[0])
             typeVal = pNode.children[0].children[0]
             return typeVal.lower().capitalize()
         else:
             return pNode.children[0].lower().capitalize()
 
     def genId(self, pNode:PNode) -> str:
-        self.validate("Id", pNode.value)
+        self.validate("Id", pNode)
         return pNode.children[0].lower()
 
     def genCname(self, pNode:PNode) -> str:
-        self.validate("Cname", pNode.value)
+        self.validate("Cname", pNode)
         return pNode.children[0].lower().capitalize()
 
     def genVar(self, pNode:PNode):
-        self.validate("Type", pNode.children[0].value)
-        self.validate("Id", pNode.children[1].value)
+        self.validate("Type", pNode.children[0])
+        self.validate("Id", pNode.children[1])
         varType = self.genType(pNode.children[0])
         varId = self.genId(pNode.children[1])
         varNode = VariableNode(varId, varType)
         return varNode
 
     def genStmt(self, pNode:PNode):
-        self.validate("Stmt", pNode.value)
+        self.validate("Stmt", pNode)
         if pNode.children[0].value == "StmtIf":
             return self.genIfStmt(pNode.children[0])
         elif pNode.children[0].value == "StmtWhile":
@@ -573,11 +602,11 @@ class AST:
 
 
     def genIfStmt(self, pNode:PNode):
-        self.validate("StmtIf", pNode.value)
+        self.validate("StmtIf", pNode)
         tNode = StmtIfNode()
-        self.validate("Exp", pNode.children[2].value)
-        self.validate("BoolExp", pNode.children[2].children[0].value)
-        ifCondExpNode = self.genBoolExpNode(pNode.children[2].children[0])
+        self.validate("Exp", pNode.children[2])
+        self.validate("BoolExp", pNode.children[2].children[0])
+        ifCondExpNode = self.genBoolExp(pNode.children[2].children[0])
         tNode.setIfCondExp(ifCondExpNode)
 
         i = 5
@@ -595,12 +624,12 @@ class AST:
         return tNode
 
     def genWhileStmt(self, pNode:PNode):
-        self.validate("StmtWhile", pNode.value)
+        self.validate("StmtWhile", pNode)
         tNode = StmtWhileNode()
-        self.validate("Exp", pNode.children[2].value)
-        self.validate("BoolExp", pNode.children[2].children[0].value)
-        ifCondExpNode = self.genBoolExpNode(pNode.children[2].children[0])
-        tNode.setWhileCondExp(ifCondExpNode)
+        self.validate("Exp", pNode.children[2])
+        self.validate("BoolExp", pNode.children[2].children[0])
+        whileCondExpNode = self.genBoolExp(pNode.children[2].children[0])
+        tNode.setWhileCondExp(whileCondExpNode)
 
         i = 5
         while isinstance(pNode.children[i], PNode) and pNode.children[i].value == "Stmt":
@@ -611,24 +640,24 @@ class AST:
         return tNode
 
     def genReadStmt(self, pNode:PNode):
-        self.validate("StmtReadln", pNode.value)
+        self.validate("StmtReadln", pNode)
         tNode = StmtReadNode()
-        self.validate("Id", pNode.children[3].value)
-        id = self.genId(pNode.children[3])
+        self.validate("Id", pNode.children[2])
+        id = self.genId(pNode.children[2])
         tNode.setId(id)
         return tNode
 
 
     def genPrintStmt(self, pNode:PNode):
-        self.validate("StmtPrintln", pNode.value)
+        self.validate("StmtPrintln", pNode)
         tNode = StmtPrintNode()
-        self.validate("Exp", pNode.children[3].value)
-        expNode = self.genExp(pNode.children[3])
+        self.validate("Exp", pNode.children[2])
+        expNode = self.genExp(pNode.children[2])
         tNode.setExp(expNode)
         return tNode
 
     def genReturnStmt(self, pNode:PNode):
-        self.validate("StmtReturn", pNode.value)
+        self.validate("StmtReturn", pNode)
         tNode = StmtReturnNode()
         if isinstance(pNode.children[1], str) and pNode.children[1] == ";":
             tNode.setVoid(True)
@@ -640,11 +669,11 @@ class AST:
         return tNode
 
     def genAssignStmt(self, pNode:PNode):
-        self.validate("StmtAssign", pNode.value)
+        self.validate("StmtAssign", pNode)
         
         if isinstance(pNode.children[0], PNode) and pNode.children[0].value == "Id":
             tNode = StmtVarAssignNode()
-            self.validate("Exp", pNode.children[2].value)
+            self.validate("Exp", pNode.children[2])
             id = self.genId(pNode.children[0])
             exp = self.genExp(pNode.children[2])
             tNode.setVarId(id)
@@ -652,13 +681,13 @@ class AST:
             return tNode
     
 
-        self.validate("Atom", pNode.children[0].value)
+        self.validate("Atom", pNode.children[0])
         tNode = StmtFieldAssignNode()
         atom = pNode.children[0]
         classExp = self.genClassExp(atom.children[:-2])
         tNode.setClassExp(classExp)
 
-        self.validate("Id", atom.children[-1].value)
+        self.validate("Id", atom.children[-1])
         id = self.genId(atom.children[-1])
         tNode.setFieldId(id)
 
@@ -666,13 +695,13 @@ class AST:
 
 
     def genCallStmt(self, pNode:PNode):
-        self.validate("Atom", pNode.value)
+        self.validate("Atom", pNode)
         
         if len(pNode.children) == 4:  # id ( ExpList )
             tNode = ExpLocalCallNode()
         else:
             tNode = ExpGlobalCallNode()
-            classExp = self.genClassExp(pNode.children[:-4])
+            classExp = self.genClassExp(pNode.children[:-5])
             tNode.setClassExp(classExp)
         
         self.validate("Id", pNode.children[-4])
@@ -681,7 +710,7 @@ class AST:
         
         self.validate("ExpList", pNode.children[-2])
         expListNode = pNode.children[-2]
-        for c in expListNode.chilren:
+        for c in expListNode.children:
             if isinstance(c, PNode):
                 exp = self.genExp(c)
                 tNode.addArgExp(exp)
@@ -690,7 +719,7 @@ class AST:
 
 
     def genExp(self, pNode:PNode):
-        self.validate("Exp", pNode.value)
+        self.validate("Exp", pNode)
         if isinstance(pNode.children[0], PNode) and pNode.children[0].value == "BoolExp":
             return self.genBoolExp(pNode.children[0])
         elif isinstance(pNode.children[0], PNode) and pNode.children[0].value == "MathExp":
@@ -699,21 +728,21 @@ class AST:
             return self.genStringExp(pNode)
 
     def genBoolExp(self, pNode:PNode):
-        self.validate("BoolExp", pNode.value)
+        self.validate("BoolExp", pNode)
         tNode = ExpBoolOrNode()
         for c in pNode.children:
             if isinstance(c, PNode):
-                self.validate("Conj", c.value)
+                self.validate("Conj", c)
                 andExpNode = self.genBoolAndExp(c)
                 tNode.addAndExp(andExpNode)
         return tNode
 
     def genBoolAndExp(self, pNode:PNode):
-        self.validate("Conj", pNode.value)
+        self.validate("Conj", pNode)
         tNode = ExpBoolAndNode()
         for c in pNode.children:
             if isinstance(c, PNode):
-                self.validate("RelExp", c.value)
+                self.validate("RelExp", c)
                 relExpNode = self.genBoolRelExp(c)
                 tNode.addRelExp(relExpNode)
         return tNode
@@ -721,7 +750,7 @@ class AST:
     def genBoolRelExp(self, pNode:PNode):
         self.validate("RelExp", pNode.value)
         if isinstance(pNode.children[0], PNode) and pNode.children[0].value == "MathExp":
-            self.validate("MathExp", pNode.children[2].value)
+            self.validate("MathExp", pNode.children[2])
             tNode = ExpBoolRelNode()
             firstExpNode = self.genMathExp(pNode.children[0])
             secondExpNode = self.genMathExp(pNode.children[2])
@@ -736,62 +765,314 @@ class AST:
             return tNode
 
     def genBoolBaseExp(self, pNode:PNode):
-        # !!!!true / false / !atom / atom
-        return ExpNode(EXP)
+        """
+        !!!!true / false / !atom / atom
+        """
+        self.validate("RelExp", pNode)
+        tNode = ExpBoolBaseNode()
+        isNeg = False
+        i = 0
+        while isinstance(pNode.children[i], str) and pNode.children[i] == "!":
+            isNeg = not isNeg
+            i += 1
+        tNode.setNegated(isNeg)
+        if isinstance(pNode.children[i], str):
+            val = pNode.children[i] # true / false
+            expBoolNode = ExpBoolNode(val)
+            expBoolNode.setType(TYPE_BOOL)
+            tNode.setExp(expBoolNode)
+            return tNode
+        
+        self.validate("Atom", pNode.children[i])
+        expNode = self.genClassExp(pNode.children[i].children)
+        tNode.setExp(expNode)
+        return tNode
 
     def genMathExp(self, pNode:PNode):
-        # ---1 / 1 / atom / -atom / + - * /
-        return ExpNode(EXP)
-
-    def genClassExp(self, nodes:list):
-        return ExpNode(EXP)
-
-    def genStringExp(self, pNode:PNode):
-        self.validate("Exp", pNode.value)
+        self.validate("MathExp", pNode)
         i = 0
-        tNode = ExpStringNode(pNode.children[i])
+        tNode = self.genTermExp(pNode.children[i])
+
         i += 1
         while i < len(pNode.children):
-            parent = ExpAddNode()
-            nextNode = ExpStringNode(pNode.children[i+1])
-            parent.setType(TYPE_STRING)
+            if pNode.children[i] == "+":
+                parent = ExpAddNode()
+            elif pNode.children[i] == "-":
+                parent = ExpSubNode()
+            else:
+                self.validate("+ or -", pNode.children[i])
+            
+            nextNode = self.genTermExp(pNode.children[i+1])
             parent.setFirstExp(tNode)
             parent.setSecondExp(nextNode)
             tNode = parent
             i += 2
         return tNode
 
+    def genTermExp(self, pNode:PNode):
+        self.validate("Term", pNode)
+        i = 0
+        tNode = self.genFactorExp(pNode.children[i])
+
+        i += 1
+        while i < len(pNode.children):
+            if pNode.children[i] == "*":
+                parent = ExpMulNode()
+            elif pNode.children[i] == "/":
+                parent = ExpDivNode()
+            else:
+                self.validate("* or /", pNode.children[i])
+            
+            nextNode = self.genFactorExp(pNode.children[i+1])
+            parent.setFirstExp(tNode)
+            parent.setSecondExp(nextNode)
+            tNode = parent
+            i += 2
+        return tNode
+
+    def genFactorExp(self, pNode:PNode):
+        """
+        ---1 / 1 / atom / -atom / + - * /
+        """
+        self.validate("Factor", pNode)
+        tNode = ExpIntBaseNode()
+        i = 0
+        isNeg = False
+        while isinstance(pNode.children[i], str) and pNode.children[i] == "-":
+            isNeg = not isNeg
+            i += 1
+        tNode.setNegated(isNeg)
+        if isinstance(pNode.children[i], str):
+            val = pNode.children[i] # 112 / 1212 / int
+            intNode = ExpIntNode(val)
+            tNode.setExp(intNode)
+            return tNode
+
+        self.validate("Atom", pNode.children[i])
+        expNode = self.genClassExp(pNode.children[i].children)
+        tNode.setExp(expNode)
+        return tNode
         
 
-# class MethodSignature:
-#     def __init__(self, argTypes:'list[str]', retType:str):
-#         """
-#         arg_types : a list of type names
-#         ret_type  : a single type name
-#         """
-#         self.argTypes = argTypes
-#         self.retType = retType
+    def genClassExp(self, nodes:list):
+        """
+        where m = Id / 'this' / 'null' / 'new' Cname '(' ')'
 
-#     def getArgTypes(self) -> 'list[str]':
-#         return self.argTypes
+        m 
+        m . Id
+        m . Id ( ExpList )
 
-#     def getRetType(self) -> str:
-#         return self.retType
+        m ( ExpList )
 
-# class ClassDescriptor:
-#     def __init__(self, cname: str):
-#         """
-#         cname : a string representing the class name
-#         """
-#         self.cname = cname
-#         self.fds = {}
-#         self.msigs = {}
-    
-#     def addFd(self, id: str, type_name: str):
-#         self.fds[id] = type_name
+        ( Exp )
+        ( Exp ) . Id
+        ( Exp ) . Id ( ExpList )
+        """
+        if len(nodes) == 1:
+            # m
+            if isinstance(nodes[0], PNode):
+                self.validate("Id", nodes[0])
+                varId = self.genId(nodes[0])
+                tNode = ExpVarNode()
+                tNode.setVarId(varId)
+                return tNode
+            elif isinstance(nodes[0], str):
+                if nodes[0] == "this":
+                    varId = nodes[0]
+                    tNode = ExpVarNode()
+                    tNode.setVarId(varId)
+                    return tNode
+                elif nodes[0] == "null":
+                    tNode = ExpNullNode()
+                    return tNode    
 
-#     def addMsig(self, id: str, signature: MethodSignature):
-#         self.msigs[id] = signature
+        if len(nodes) == 3 and \
+            isinstance(nodes[0], str) and \
+            isinstance(nodes[1], PNode) and \
+            isinstance(nodes[2], str):
+            self.validate("(", nodes[0])
+            self.validate("Exp", nodes[1])
+            self.validate(")", nodes[2])
+            expNode = self.genExp(nodes[1])
+            return expNode
+
+        if len(nodes) == 4 and \
+            isinstance(nodes[0], str) and \
+            isinstance(nodes[1], PNode) and \
+            isinstance(nodes[2], str) and \
+            isinstance(nodes[3], str):
+            self.validate("new", nodes[0])
+            self.validate("Cname", nodes[1])
+            self.validate("(", nodes[2])
+            self.validate(")", nodes[3])
+            cname = self.genCname(nodes[1])
+            newClassNode = ExpNewClassNode()
+            newClassNode.setType(cname)
+            return newClassNode
+
+        if len(nodes) >= 4 and \
+            isinstance(nodes[-4], PNode) and \
+            isinstance(nodes[-3], str) and \
+            isinstance(nodes[-2], PNode) and \
+            isinstance(nodes[-1], str):
+            self.validate("Id", nodes[-4])
+            self.validate("(", nodes[-3])
+            self.validate("ExpList", nodes[-2])
+            self.validate(")", nodes[-1])
+            if len(nodes[:-4]) == 0:
+                tNode = ExpLocalCallNode()
+            else:
+                self.validate(".", nodes[-5])
+                tNode = ExpGlobalCallNode()
+                classExpNode = self.genClassExp(nodes[:-5])
+                tNode.setClassExp(classExpNode)
+
+            methodId = self.genId(nodes[0])
+            tNode.setMethodId(methodId)
+
+            for c in nodes[2].children:
+                if isinstance(c, PNode):
+                    exp = self.genExp(c)
+                    tNode.addArgExp(exp)
+            return tNode
+        
+        # else len(nodes) >= 2
+        if len(nodes) >= 2 and isinstance(nodes[-1], PNode) and isinstance(nodes[-2], str):
+            # atom . id
+            self.validate("Id", nodes[-1])
+            self.validate(".", nodes[-2])
+            tNode = ExpFieldNode()
+            fieldId = self.genId(nodes[-1])
+            classExpNode = self.genClassExp(nodes[:-2])
+            tNode.setFieldId(fieldId)
+            tNode.setClassExp(classExpNode)
+            return tNode
+
+
+    def genStringExp(self, pNode:PNode):
+        """
+        Might be a string expression, or a ADD on a sequence of atoms
+        """
+        self.validate("Exp", pNode)
+        i = 0
+        if isinstance(pNode.children[i], str):
+            tNode = ExpStringNode(pNode.children[i])
+        else:
+            self.validate("Atom", pNode.children[i])
+            tNode = self.genClassExp(pNode.children[i].children)
+
+        i += 1
+        while i < len(pNode.children):
+            self.validate("+", pNode.children[i])
+            parent = ExpAddNode()
+            if isinstance(pNode.children[i+1], str):
+                nextNode = ExpStringNode(pNode.children[i+1])
+            else:
+                self.validate("Atom", pNode.children[i+1])
+                nextNode = self.genClassExp(pNode.children[i+1].children)
+            parent.setFirstExp(tNode)
+            parent.setSecondExp(nextNode)
+            tNode = parent
+            i += 2
+        return tNode
+
+################################################################################################
+
+# Static Checker
+
+################################################################################################
+        
+class MethodInfo:
+    id:str
+    returnType:str
+    formals:'dict[str,str]'
+    actuals:'dict[str,str]'
+    argTypes:'tuple[str]'
+
+class ClassInfo:
+    cname:str
+    fields:'dict[str,str]'
+    msigs:'dict[str,dict[tuple[str],MethodInfo]]'
+        
+class ClassDescriptor:
+    classTypes:'dict[str,ClassInfo]'
+
+class Checker:
+    def loadAST(self, ast:AST):
+        self.ast = ast
+        self.cd = ClassDescriptor()
+
+    def checkNames(self):
+        self.cd.classTypes = self.checkClassNames(self.ast.root)
+
+    def checkClassNames(self, programNode:ProgramNode) -> 'dict[ClassInfo]':
+        classTypes = {}
+
+        # Check main class
+        classInfo = ClassInfo()
+        classInfo.cname = programNode.mainClass.cname
+        classInfo.fields = self.checkClassFieldNames(programNode.mainClass)
+        classInfo.msigs = self.checkClassMethodNames(programNode.mainClass)
+        classTypes[classInfo.cname] = classInfo
+
+        # Check all other classes
+        for c in programNode.classes:
+            info = ClassInfo()
+            if c.cname in classTypes:
+                errorF(f'error: repeated classname \'{c.cname}\' declaration not allowed')
+            info.cname = c.cname
+            info.fields = self.checkClassFieldNames(c)
+            info.msigs = self.checkClassMethodNames(c)
+            classTypes[info.cname] = info
+        
+        return classTypes
+
+    def checkClassFieldNames(self, classNode:ClassNode):
+        fields = {}
+        for c in classNode.fields:
+            if c.id in fields:
+                errorF(f'error: repeated field \'{c.id}\' declaration in class \'{classNode.cname}\' not allowed')
+            fields[c.id] = c.type
+        return fields
+
+    def checkClassMethodNames(self, classNode:ClassNode):
+        msigs = {}
+        """
+        Use argTypes tuple as a key to uniquely identify the method signature
+        """
+        for m in classNode.methods:
+            info = self.checkClassMethodParameterNames(m)
+            if m.id in msigs and info.argTypes in msigs[m.id]:
+                errorF(f'error: repeated method \'{m.id}\' with identical parameter(s) {info.argTypes} declaration in class \'{classNode.cname}\' not allowed')
+            elif m.id in msigs:
+                msigs[m.id][info.argTypes] = info
+            else:
+                msigs[m.id] = {info.argTypes : info}
+        return msigs
+
+    def checkClassMethodParameterNames(self, methodNode:MethodNode) -> MethodInfo:
+        m = MethodInfo()
+        m.id = methodNode.id
+        m.returnType = methodNode.retType
+        m.formals = {}
+        m.actuals = {}
+        argTypes = []
+        for f in methodNode.formals:
+            if f.id in m.formals:
+                errorF(f'error: repeated formal parameter \'{f.id}\' in method \'{m.id}\' not allowed')
+            m.formals[f.id] = f.type
+            argTypes.append(f.type)
+        for a in methodNode.actuals:
+            if a.id in m.actuals:
+                errorF(f'error: repeated actual parameter \'{a.id}\' declaration in method \'{m.id}\' not allowed')
+            if a.id in m.formals:
+                errorF(f'error: actual parameter \'{a.id}\' overlaps formal parameter in method \'{m.id}\' not allowed')
+            m.actuals[a.id] = a.type
+        m.argTypes = tuple(argTypes)
+        return m
+
+
+
 
 
 
@@ -817,4 +1098,7 @@ if __name__ == '__main__':
     f.close()
 
     ast = AST(parseTree)
+    c = Checker()
+    c.loadAST(ast)
+    c.checkNames()
 
