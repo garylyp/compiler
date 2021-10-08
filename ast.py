@@ -52,6 +52,7 @@ TYPE_INT = "Int"
 TYPE_BOOL = "Bool"
 TYPE_STRING = "String"
 TYPE_VOID = "Void"
+TYPE_NULL_OBJECT = "Null"
 
 def errorF(msg):
     print(msg)
@@ -320,7 +321,7 @@ class ExpAddNode(ExpNode):
         super().__init__(EXP_ADD)
 
     def setFirstExp(self, expNode):
-        self.setFirstExp = expNode
+        self.firstExp = expNode
 
     def setSecondExp(self, expNode):
         self.secondExp = expNode
@@ -330,7 +331,7 @@ class ExpSubNode(ExpNode):
         super().__init__(EXP_SUB)
 
     def setFirstExp(self, expNode):
-        self.setFirstExp = expNode
+        self.firstExp = expNode
 
     def setSecondExp(self, expNode):
         self.secondExp = expNode
@@ -340,7 +341,7 @@ class ExpMulNode(ExpNode):
         super().__init__(EXP_MUL)
 
     def setFirstExp(self, expNode):
-        self.setFirstExp = expNode
+        self.firstExp = expNode
 
     def setSecondExp(self, expNode):
         self.secondExp = expNode
@@ -350,7 +351,7 @@ class ExpDivNode(ExpNode):
         super().__init__(EXP_DIV)
 
     def setFirstExp(self, expNode):
-        self.setFirstExp = expNode
+        self.firstExp = expNode
 
     def setSecondExp(self, expNode):
         self.secondExp = expNode
@@ -439,6 +440,7 @@ class ExpNewClassNode(ExpNode):
 class ExpNullNode(ExpNode):
     def __init__(self):
         super().__init__(EXP_NULL)
+        super().setType(TYPE_NULL_OBJECT)
 
 ################################################################################################
 
@@ -456,7 +458,8 @@ class AST:
             actual = actual.value
         if expected == actual:
             return
-        raise Exception(f'Expected {expected} node but got {actual}')
+        print(f'Expected {expected} node but got {actual}')
+        exit(1)
         
 
     def constructAST(self, pNode:PNode):
@@ -541,6 +544,9 @@ class AST:
             tNode.addFormal(varNode)
             i += 2
 
+        if isinstance(pNode.children[i], str) and pNode.children[i] == ")":
+            i += 1
+
         mdBodyNode = pNode.children[i]
         i = 1 # i = 0 is the '{'
         while isinstance(mdBodyNode.children[i], PNode) and mdBodyNode.children[i].value == "VarDecl":
@@ -605,8 +611,7 @@ class AST:
         self.validate("StmtIf", pNode)
         tNode = StmtIfNode()
         self.validate("Exp", pNode.children[2])
-        self.validate("BoolExp", pNode.children[2].children[0])
-        ifCondExpNode = self.genBoolExp(pNode.children[2].children[0])
+        ifCondExpNode = self.genExp(pNode.children[2])
         tNode.setIfCondExp(ifCondExpNode)
 
         i = 5
@@ -627,8 +632,7 @@ class AST:
         self.validate("StmtWhile", pNode)
         tNode = StmtWhileNode()
         self.validate("Exp", pNode.children[2])
-        self.validate("BoolExp", pNode.children[2].children[0])
-        whileCondExpNode = self.genBoolExp(pNode.children[2].children[0])
+        whileCondExpNode = self.genExp(pNode.children[2])
         tNode.setWhileCondExp(whileCondExpNode)
 
         i = 5
@@ -680,9 +684,11 @@ class AST:
             tNode.setResultExp(exp)
             return tNode
     
-
         self.validate("Atom", pNode.children[0])
         tNode = StmtFieldAssignNode()
+        exp = self.genExp(pNode.children[2])
+        tNode.setResultExp(exp)
+
         atom = pNode.children[0]
         classExp = self.genClassExp(atom.children[:-2])
         tNode.setClassExp(classExp)
@@ -698,9 +704,9 @@ class AST:
         self.validate("Atom", pNode)
         
         if len(pNode.children) == 4:  # id ( ExpList )
-            tNode = ExpLocalCallNode()
+            tNode = StmtLocalCallNode()
         else:
-            tNode = ExpGlobalCallNode()
+            tNode = StmtGlobalCallNode()
             classExp = self.genClassExp(pNode.children[:-5])
             tNode.setClassExp(classExp)
         
@@ -927,10 +933,10 @@ class AST:
                 classExpNode = self.genClassExp(nodes[:-5])
                 tNode.setClassExp(classExpNode)
 
-            methodId = self.genId(nodes[0])
+            methodId = self.genId(nodes[-4])
             tNode.setMethodId(methodId)
 
-            for c in nodes[2].children:
+            for c in nodes[-2].children:
                 if isinstance(c, PNode):
                     exp = self.genExp(c)
                     tNode.addArgExp(exp)
@@ -997,41 +1003,171 @@ class ClassInfo:
 class ClassDescriptor:
     classTypes:'dict[str,ClassInfo]'
 
+    def validateClass(self, cname:str):
+        if cname not in self.classTypes:
+            return False
+        return True
+
+    def validateFieldType(self, cname:str, fieldId:str) -> bool:
+        if not self.validateClass(cname):
+            return False
+        if fieldId not in self.classTypes[cname].fields:
+            return False
+        return True
+
+    def validateMethodType(self, cname:str, methodId:str, argTypes:'tuple[str]') -> bool:
+        if not self.validateClass(cname):
+            return False
+        if methodId not in self.classTypes[cname].msigs:
+            return False
+        msigs = self.classTypes[cname].msigs
+        if argTypes not in msigs[methodId]:
+            return False
+        return True
+
+    def getClassInfo(self, cname:str) -> ClassInfo:
+        if not self.validateClass(cname):
+            return None
+        return self.classTypes[cname]
+
+    def getFieldType(self, cname:str, fieldId:str) -> str:
+        if not self.validateFieldType(cname, fieldId):
+            return None
+        return self.classTypes[cname].fields[fieldId]
+
+    def getMethodType(self, cname:str, methodId:str, argTypes:'tuple[str]') -> str:
+        if not self.validateMethodType(cname, methodId, argTypes):
+            return None
+        return self.classTypes[cname].msigs[methodId][argTypes].returnType
+
+    def isExistingClassType(self, someType:str):
+        return someType in self.classTypes
+
+    def isExistingType(self, someType:str):
+        return someType in [TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_VOID] or \
+            self.isExistingClassType(someType)
+    
+    def isNullableType(self, someType:str):
+        return self.isExistingClassType(someType) or someType in [TYPE_STRING]
+
+
+    
+class TypeEnv:
+    """
+    Describes the environment for a method call
+    """
+
+    # Local variables
+    variables:'dict[str,str]'
+    returnType:'str'
+    methodId:'str'
+
+    def __init__(self, parentCname:str, methodId:str, returnType:str, cd:ClassDescriptor) -> None:
+        self.variables = {}
+        self.variables["this"] = parentCname
+        self.methodId = methodId
+        self.returnType = returnType
+        self.cd = cd
+
+    def addVar(self, varId, type) -> None:
+        self.variables[varId] = type
+
+    def getVarType(self, varId) -> str:
+        cname = self.variables["this"]
+        if varId in self.variables:
+            return self.variables[varId]
+        elif self.cd.validateFieldType(cname, varId):
+            return self.cd.getFieldType(cname, varId)
+        else:
+            return None
+
+    def getVarType(self, varId) -> str:
+        cname = self.variables["this"]
+        if varId in self.variables:
+            return self.variables[varId]
+        else:
+            return self.cd.getFieldType(cname, varId)
+
+    def getFieldType(self, cname, fieldId) -> str:
+        return self.cd.getFieldType(cname, fieldId)
+    
+    def getLocalMethodType(self, methodId, argTypes) -> str:
+        cname = self.variables["this"]
+        return self.cd.getMethodType(cname, methodId, argTypes)
+
+    def getGlobalMethodType(self, cname, methodId, argTypes) -> str:
+        return self.cd.getMethodType(cname, methodId, argTypes)
+
+    def getReturnType(self) -> str:
+        return self.returnType
+
+    def getMethodId(self) -> str:
+        return self.methodId
+
+    def isExistingType(self, someType:str) -> bool:
+        return self.cd.isExistingType(someType)
+
+    def isExistingClassType(self, someType:str) -> bool:
+        return self.cd.isExistingClassType(someType)
+
+    def isNullableType(self, someType:str) -> bool:
+        return self.cd.isNullableType(someType)
+
+        
+
 class Checker:
     def loadAST(self, ast:AST):
         self.ast = ast
         self.cd = ClassDescriptor()
+        self.classTypes = {}
+
+    ########################################################################################
+
+    # Name Checker
+
+    ########################################################################################
+    def isExistingType(self, someType:str) -> bool:
+        return someType in [TYPE_INT, TYPE_BOOL, TYPE_STRING, TYPE_VOID] or \
+            someType in self.classTypes
 
     def checkNames(self):
         self.cd.classTypes = self.checkClassNames(self.ast.root)
 
     def checkClassNames(self, programNode:ProgramNode) -> 'dict[ClassInfo]':
-        classTypes = {}
-
+        
+        # Allow types to be populated first before checking methods
+        self.classTypes[programNode.mainClass.cname] = None
+        for c in programNode.classes:
+            if self.isExistingType(c.cname):
+                errorF(f'error: repeated classname \'{c.cname}\' declaration not allowed')
+            self.classTypes[c.cname] = None
+        
         # Check main class
         classInfo = ClassInfo()
         classInfo.cname = programNode.mainClass.cname
         classInfo.fields = self.checkClassFieldNames(programNode.mainClass)
         classInfo.msigs = self.checkClassMethodNames(programNode.mainClass)
-        classTypes[classInfo.cname] = classInfo
-
+        self.classTypes[classInfo.cname] = classInfo
         # Check all other classes
         for c in programNode.classes:
             info = ClassInfo()
-            if c.cname in classTypes:
-                errorF(f'error: repeated classname \'{c.cname}\' declaration not allowed')
             info.cname = c.cname
             info.fields = self.checkClassFieldNames(c)
             info.msigs = self.checkClassMethodNames(c)
-            classTypes[info.cname] = info
+            self.classTypes[info.cname] = info
         
-        return classTypes
+        return self.classTypes
 
     def checkClassFieldNames(self, classNode:ClassNode):
         fields = {}
         for c in classNode.fields:
             if c.id in fields:
                 errorF(f'error: repeated field \'{c.id}\' declaration in class \'{classNode.cname}\' not allowed')
+            
+            # Checking for type as well
+            if not self.isExistingType(c.type):
+                errorF(f'error: field \'{c.id}\' declaration in class \'{classNode.cname}\' using non-' + \
+                    f'existent type \'{c.type}\'')
             fields[c.id] = c.type
         return fields
 
@@ -1043,7 +1179,9 @@ class Checker:
         for m in classNode.methods:
             info = self.checkClassMethodParameterNames(m)
             if m.id in msigs and info.argTypes in msigs[m.id]:
-                errorF(f'error: repeated method \'{m.id}\' with identical parameter(s) {info.argTypes} declaration in class \'{classNode.cname}\' not allowed')
+                errorF(f'error: repeated method \'{m.id}\' with identical ' + \
+                    f'parameter(s) {info.argTypes} declaration in class ' +\
+                    f'\'{classNode.cname}\' not allowed')
             elif m.id in msigs:
                 msigs[m.id][info.argTypes] = info
             else:
@@ -1057,19 +1195,489 @@ class Checker:
         m.formals = {}
         m.actuals = {}
         argTypes = []
+        # Checking for type as well
+        if not self.isExistingType(m.returnType):
+            errorF(f'error: method \'{m.id}\' declaration in class using non-' + \
+                f'existent return type \'{m.returnType}\'')
+
         for f in methodNode.formals:
             if f.id in m.formals:
                 errorF(f'error: repeated formal parameter \'{f.id}\' in method \'{m.id}\' not allowed')
+
+            # Checking for type as well
+            if not self.isExistingType(f.type):
+                errorF(f'error: formals \'{f.id}\' declaration in method \'{m.id}\' using non-' + \
+                    f'existent type \'{f.type}\'')
             m.formals[f.id] = f.type
             argTypes.append(f.type)
         for a in methodNode.actuals:
             if a.id in m.actuals:
-                errorF(f'error: repeated actual parameter \'{a.id}\' declaration in method \'{m.id}\' not allowed')
+                errorF(f'error: repeated actual parameter \'{a.id}\' declaration in ' + \
+                    f'method \'{m.id}\' not allowed')
             if a.id in m.formals:
-                errorF(f'error: actual parameter \'{a.id}\' overlaps formal parameter in method \'{m.id}\' not allowed')
+                errorF(f'error: actual parameter \'{a.id}\' overlaps formal parameter'+ \
+                    f' in method \'{m.id}\' not allowed')
+            # Checking for type as well
+            if not self.isExistingType(a.type):
+                errorF(f'error: formals \'{a.id}\' declaration in method \'{m.id}\' ' + \
+                    f'using non-existent type \'{a.type}\'')
+
             m.actuals[a.id] = a.type
         m.argTypes = tuple(argTypes)
         return m
+
+    ########################################################################################
+
+    # Type Checker (main purpose is to resolve the type of every method, statement, expr)
+
+    ########################################################################################
+
+    def checkTypes(self):
+        propramNode = self.ast.root
+        ok = True
+        ok = self.checkClassType(propramNode.mainClass) and ok
+        for c in propramNode.classes:
+            ok = self.checkClassType(c) and ok
+        
+        if not ok:
+            errorF("error: type check failed")
+        
+    def checkClassType(self, classNode:ClassNode):
+        cname = classNode.cname
+        ok = True
+        for m in classNode.methods:
+            env = TypeEnv(cname, m.id, m.retType, self.cd)
+            ok = self.checkMethodType(m, env) and ok
+        return ok
+
+    def checkMethodType(self, methodNode:MethodNode, env:TypeEnv):
+        for f in methodNode.formals:
+            env.addVar(f.id, f.type)
+        for a in methodNode.actuals:
+            env.addVar(a.id, a.type)
+
+        ok = True
+        for stmt in methodNode.stmts:
+            ok = self.checkStmtType(stmt, env) and ok
+        
+        if methodNode.stmts[-1].type != methodNode.retType:
+            print(f'Type of last stmt {methodNode.stmts[-1].type} does not match return ' + \
+                f'type {methodNode.retType} of method {env.getVarType("this")}.{methodNode.id}')
+            ok = False
+        return ok
+
+    def checkStmtType(self, stmtNode:StmtNode, env:TypeEnv):
+        ok = True
+        if isinstance(stmtNode, StmtIfNode):
+            ok = self.checkExpType(stmtNode.ifCondExp, env) and ok
+            if stmtNode.ifCondExp.type != TYPE_BOOL:
+                print(f'Type of if conditional exp must be Bool'+ \
+                    f' in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+
+            for s in stmtNode.thenStmts:
+                ok = self.checkStmtType(s, env) and ok
+            for s in stmtNode.elseStmts:
+                ok = self.checkStmtType(s, env) and ok
+            if stmtNode.thenStmts[-1].type != stmtNode.elseStmts[-1].type:
+                print(f'Type of then and else block of if stmt must be equal but got ' + \
+                    f'{stmtNode.thenStmts[-1].type} and {stmtNode.elseStmts[-1].type}' + \
+                    f' in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            stmtNode.setType(stmtNode.thenStmts[-1].type)
+            return ok
+        
+        if isinstance(stmtNode, StmtWhileNode):
+            ok = self.checkExpType(stmtNode.whileCondExp, env) and ok
+            if stmtNode.whileCondExp.type != TYPE_BOOL:
+                print(f'Type of while conditional exp must be Bool'+ \
+                    f' in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+
+            for s in stmtNode.stmts:
+                ok = self.checkStmtType(s, env) and ok
+            stmtNode.setType(stmtNode.stmts[-1].type)
+            return ok
+
+        if isinstance(stmtNode, StmtPrintNode):
+            ok = self.checkExpType(stmtNode.exp, env) and ok
+            if stmtNode.exp.type not in [TYPE_INT, TYPE_BOOL, TYPE_STRING]:
+                print(f'Type of exp of print stmt must be Int, Bool or String ' + \
+                    f'but encounter {stmtNode.exp.type} '+ \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            stmtNode.setType(TYPE_VOID)
+            return ok
+
+        if isinstance(stmtNode, StmtReadNode):
+            varId = stmtNode.id
+            varType = env.getVarType(varId)
+            if varType is None:
+                print(f'Type of variable \'{varId}\' not found in env for read stmt '+ \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                stmtNode.setType(TYPE_VOID)
+                return ok
+
+            if varType not in [TYPE_INT, TYPE_BOOL, TYPE_STRING]:
+                print(f'Type of read stmt variable must be Int, Bool or String but ' + \
+                    f'encounter {varType} '+ \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            stmtNode.setType(TYPE_VOID)
+            return ok
+
+        if isinstance(stmtNode, StmtReturnNode):
+            # if env.getReturnType() == TYPE_VOID and not stmtNode.isVoid:
+            #     print(f'Type of return stmt non-void does not match Void return type ' + \
+            #         f'of method {env.getVarType("this")}.{env.getMethodId()}')
+            #     ok = False
+
+            if stmtNode.isVoid:
+                stmtNode.setType(TYPE_VOID)
+            else:
+                returnExp = stmtNode.returnExp
+                ok = self.checkExpType(returnExp, env) and ok
+                if returnExp.type == TYPE_NULL_OBJECT:
+                    if env.isNullableType(env.getReturnType()):
+                        returnExp.type = env.getReturnType()
+                    else:
+                        print(f'Type of return exp {returnExp.type} cannot be used for non-' + \
+                            f'nullable type {env.getReturnType()} of method ' + \
+                            f'{env.getVarType("this")}.{env.getMethodId()}')
+                        ok = False
+                stmtNode.setType(returnExp.type)
+                
+            if stmtNode.type != env.getReturnType():
+                print(f'Type of return stmt {stmtNode.type} does not match return type ' + \
+                    f'{env.getReturnType()} of method {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            return ok
+
+        if isinstance(stmtNode, StmtVarAssignNode):
+            varId = stmtNode.varId
+            varType = env.getVarType(varId)
+            if varType is None:
+                print(f'Type of variable \'{varId}\' not found for var assign stmt '+ \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                stmtNode.setType(TYPE_VOID)
+                return ok
+
+            exp = stmtNode.resultExp
+            ok = self.checkExpType(exp, env) and ok
+            if exp.type == TYPE_NULL_OBJECT:
+                exp.type = varType
+            if varType != exp.type:
+                print(f'Type of variable assignment stmt variable {varType} ' + \
+                    f'should be same as exp type {exp.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                
+            stmtNode.setType(TYPE_VOID)
+            return ok
+
+        if isinstance(stmtNode, StmtFieldAssignNode):
+            classExp = stmtNode.classExp
+            ok = self.checkExpType(classExp, env) and ok
+            cname = classExp.type
+            if cname is None:
+                print(f'Type of class exp not found for field assignment stmt')
+                ok = False
+                stmtNode.setType(TYPE_VOID)
+                return ok
+
+            fieldId = stmtNode.fieldId
+            fieldType = env.getFieldType(cname, fieldId)
+            if fieldType is None:
+                print(f'Type of field {cname}.{fieldId} not found for field assignment stmt ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                stmtNode.setType(TYPE_VOID)
+                return ok
+            
+            exp = stmtNode.resultExp
+            ok = self.checkExpType(exp, env) and ok
+            if exp.type == TYPE_NULL_OBJECT:
+                exp.type = fieldType
+            if fieldType != exp.type:
+                print(f'Type of field assignment stmt {cname}.{fieldId} should be same as ' + \
+                    f'exp type {exp.type} but got {fieldType} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            stmtNode.setType(TYPE_VOID)
+            return ok
+
+        if isinstance(stmtNode, StmtLocalCallNode):
+            methodId = stmtNode.methodId
+            args = []
+            for argExp in stmtNode.args:
+                ok = self.checkExpType(argExp, env) and ok
+                args.append(argExp.type)
+            argTypes = tuple(args)
+            methodType = env.getLocalMethodType(methodId, argTypes)
+            if methodType is None:
+                print(f'Type of method {methodId}{argTypes} not found in {env.getVarType("this")} for local call stmt ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                stmtNode.setType(TYPE_VOID)
+                ok = False
+                return ok
+            stmtNode.setType(methodType)
+            return ok
+
+        if isinstance(stmtNode, StmtGlobalCallNode):
+            classExp = stmtNode.classExp
+            ok = self.checkExpType(classExp, env) and ok
+            cname = classExp.type
+            if cname is None:
+                print(f'Type of class exp not found for field assignment stmt')
+                ok = False
+                stmtNode.setType(TYPE_VOID)
+                return ok
+
+            methodId = stmtNode.methodId
+            args = []
+            for argExp in stmtNode.args:
+                ok = self.checkExpType(argExp, env) and ok
+                args.append(argExp.type)
+            argTypes = tuple(args)
+
+            methodType = env.getGlobalMethodType(cname, methodId, argTypes)
+            if methodType is None:
+                print(f'Type of method {cname}.{methodId}{argTypes} not found for global call stmt ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                stmtNode.setType(TYPE_VOID)
+                ok = False
+            else:
+                stmtNode.setType(methodType)
+            return ok
+
+        print(f'Unknown stmt category {stmtNode.category} in {env.getMethodId()}')
+        ok = False
+        return ok
+
+
+
+        #############################################################
+        # Expressions
+        #############################################################
+
+
+
+    def checkExpType(self, expNode:ExpNode, env:TypeEnv):
+        ok = True
+        #############################################################
+        # Booleans
+        #############################################################
+        if isinstance(expNode, ExpBoolOrNode):
+            for exp in expNode.andExps:
+                ok = self.checkExpType(exp, env) and ok
+                if exp.type != TYPE_BOOL:
+                    print(f'Type of conj exp should be Bool but got {exp.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                    ok = False
+            expNode.setType(TYPE_BOOL)
+            return ok
+
+        if isinstance(expNode, ExpBoolAndNode):
+            for exp in expNode.relExps:
+                ok = self.checkExpType(exp, env) and ok
+                if exp.type != TYPE_BOOL:
+                    print(f'Type of rel exp / bool base should be Bool but got {exp.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                    ok = False
+            expNode.setType(TYPE_BOOL)
+            return ok
+
+        if isinstance(expNode, ExpBoolRelNode):
+            firstExp = expNode.firstExp
+            secondExp = expNode.secondExp
+            ok = self.checkExpType(firstExp, env) and ok
+            ok = self.checkExpType(secondExp, env) and ok
+            if firstExp.type != TYPE_INT or secondExp.type != TYPE_INT:
+                print(f'Type of first exp {firstExp.type} and type of ' + \
+                    f'second exp {secondExp.type} in relational exp should be Int ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            expNode.setType(TYPE_BOOL)
+            return ok
+
+        if isinstance(expNode, ExpBoolBaseNode):
+            exp = expNode.exp
+            ok = self.checkExpType(exp, env) and ok
+            if exp.type != TYPE_BOOL:
+                print(f'Type of base bool exp {exp.type} should be Bool ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            expNode.setType(TYPE_BOOL)
+            return ok
+
+        if isinstance(expNode, ExpBoolNode):
+            expNode.setType(TYPE_BOOL)
+            return ok
+
+        #############################################################
+        # Arithmetic / String
+        #############################################################
+        if isinstance(expNode, ExpAddNode):
+            firstExp = expNode.firstExp
+            secondExp = expNode.secondExp
+            ok = self.checkExpType(firstExp, env) and ok
+            if not (firstExp.type == TYPE_INT or \
+                    firstExp.type == TYPE_STRING or \
+                    firstExp.type == TYPE_NULL_OBJECT):
+                print(f'Type of first exp {firstExp.type} should be Int or String/Null ' + \
+                    f'in add expression but got {firstExp.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+
+            expNode.setType(firstExp.type)
+            if expNode.type == TYPE_NULL_OBJECT:
+                expNode.setType(TYPE_STRING)
+            
+            ok = self.checkExpType(secondExp, env) and ok
+            if secondExp.type != expNode.type:
+                print(f'Type of second exp {secondExp.type} should match ' + \
+                    f'type of add exp {expNode.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+
+            return ok
+
+        if  isinstance(expNode, ExpSubNode) or \
+            isinstance(expNode, ExpMulNode) or \
+            isinstance(expNode, ExpDivNode):
+            firstExp = expNode.firstExp
+            secondExp = expNode.secondExp
+            ok = self.checkExpType(firstExp, env) and ok
+            ok = self.checkExpType(secondExp, env) and ok
+            if firstExp.type != TYPE_INT or secondExp.type != TYPE_INT:
+                print(f'Type of first exp {firstExp.type} and type of ' + \
+                    f'second exp {secondExp.type} in arithmetic expression should be Int ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            expNode.setType(TYPE_INT)
+            return ok
+
+        if isinstance(expNode, ExpIntBaseNode):
+            exp = expNode.exp
+            ok = self.checkExpType(exp, env) and ok
+            if exp.type != TYPE_INT:
+                print(f'Type of base int exp {exp.type} should be Int ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            expNode.setType(TYPE_INT)
+            return ok
+
+        if isinstance(expNode, ExpIntNode):
+            expNode.setType(TYPE_INT)
+            return ok
+
+        if isinstance(expNode, ExpStringNode):
+            expNode.setType(TYPE_STRING)
+            return ok
+
+        #############################################################
+        # Atoms
+        #############################################################
+
+        if isinstance(expNode, ExpVarNode):
+            varId = expNode.varId
+            varType = env.getVarType(varId)
+            if varType is None:
+                print(f'Type of variable {varId} not found in env ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                expNode.setType(TYPE_VOID)
+            else:
+                expNode.setType(varType)
+            return ok
+
+        if isinstance(expNode, ExpFieldNode):
+            classExp = expNode.classExp
+            ok = self.checkExpType(classExp, env) and ok
+            cname = classExp.type
+            if cname is None:
+                print(f'Type of class exp \'{cname}\' not found for field in env ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                expNode.setType(TYPE_VOID)
+                return ok
+
+            fieldId = expNode.fieldId
+            fieldType = env.getFieldType(cname, fieldId)
+            if fieldType is None:
+                print(f'Type of field {cname}.{fieldId} not found in env ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                expNode.setType(TYPE_VOID)
+            else:
+                expNode.setType(fieldType)
+            return ok
+
+        if isinstance(expNode, ExpLocalCallNode):
+            methodId = expNode.methodId
+            args = []
+            for argExp in expNode.args:
+                ok = self.checkExpType(argExp, env) and ok
+                args.append(argExp.type)
+            argTypes = tuple(args)
+            methodType = env.getLocalMethodType(methodId, argTypes)
+
+            if methodType is None:
+                print(f'Type of method {methodId}{argTypes} not found in ' + \
+                    f'{env.getVarType("this")} for local call exp ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                expNode.setType(TYPE_VOID)
+                ok = False
+            else:
+                expNode.setType(methodType)
+            return ok
+
+        if isinstance(expNode, ExpGlobalCallNode):
+            classExp = expNode.classExp
+            ok = self.checkExpType(classExp, env) and ok
+            cname = classExp.type
+            if cname is None:
+                print(f'Type of class exp \'{cname}\' not found for field assignment stmt ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                expNode.setType(TYPE_VOID)
+                return ok
+
+            methodId = expNode.methodId
+            args = []
+            for argExp in expNode.args:
+                ok = self.checkExpType(argExp, env) and ok
+                args.append(argExp.type)
+            argTypes = tuple(args)
+            methodType = env.getGlobalMethodType(cname, methodId, argTypes)
+
+            if methodType is None:
+                print(f'Type of method {cname}.{methodId}{argTypes} not found for global call stmt ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+                expNode.setType(TYPE_VOID)
+            else:
+                expNode.setType(methodType)
+
+            return ok
+
+        if isinstance(expNode, ExpNewClassNode):
+            if not env.isExistingClassType(expNode.type):
+                print(f'Type of new cname ( ) stmt uses non-existent type {expNode.type} ' + \
+                    f'in {env.getVarType("this")}.{env.getMethodId()}')
+                ok = False
+            return ok
+
+        if isinstance(expNode, ExpNullNode):
+            expNode.setType(TYPE_NULL_OBJECT)
+            return ok
+
+        print(f'Unknown exp category {expNode.category} in {env.getMethodId()}')
+        ok = False
+        return ok
+
 
 
 
@@ -1101,4 +1709,5 @@ if __name__ == '__main__':
     c = Checker()
     c.loadAST(ast)
     c.checkNames()
+    c.checkTypes()
 
