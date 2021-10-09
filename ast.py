@@ -1271,7 +1271,8 @@ class Checker:
         if isinstance(stmtNode, StmtIfNode):
             ok = self.checkExpType(stmtNode.ifCondExp, env) and ok
             if stmtNode.ifCondExp.type != TYPE_BOOL:
-                print(f'Type of if conditional exp must be Bool'+ \
+                print(f'Type of if conditional exp \'{stmtNode.ifCondExp.type}\'' + \
+                    f' must be Bool'+ \
                     f' in {env.getVarType("this")}.{env.getMethodId()}')
                 ok = False
 
@@ -1290,7 +1291,8 @@ class Checker:
         if isinstance(stmtNode, StmtWhileNode):
             ok = self.checkExpType(stmtNode.whileCondExp, env) and ok
             if stmtNode.whileCondExp.type != TYPE_BOOL:
-                print(f'Type of while conditional exp must be Bool'+ \
+                print(f'Type of while conditional exp \'{stmtNode.whileCondExp.type}\'' + \
+                    f' must be Bool'+ \
                     f' in {env.getVarType("this")}.{env.getMethodId()}')
                 ok = False
 
@@ -1369,8 +1371,8 @@ class Checker:
             if exp.type == TYPE_NULL_OBJECT:
                 exp.type = varType
             if varType != exp.type:
-                print(f'Type of variable assignment stmt variable {varType} ' + \
-                    f'should be same as exp type {exp.type} ' + \
+                print(f'Type of variable assign stmt variable \'{varType}\' for var \'{varId}\' ' + \
+                    f'should be same as exp type \'{exp.type}\' ' + \
                     f'in {env.getVarType("this")}.{env.getMethodId()}')
                 ok = False
                 

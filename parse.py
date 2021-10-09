@@ -222,7 +222,7 @@ class Parser:
             # print(self.debugOutput)
             self.printTree()
         # TODO: Print line number too (get from lexer)
-        print(f'Error: Expected {list(expected)} but encountered \"{self.token}\"')
+        print(f'Parse Error: Expected {list(expected)} but encountered \"{self.token}\"')
         exit(1)
 
 
@@ -770,6 +770,6 @@ if __name__ == '__main__':
     
     if p.i < len(p.tokens):
         if debug: p.printTree()
-        print(f'Error: tokens remaining after parsing completed: {p.tokens[p.i:]}')
+        print(f'Parse Error: tokens remaining after parsing completed: {p.tokens[p.i:]}')
     else:
         p.printTree()
