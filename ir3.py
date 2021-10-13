@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import sys, copy
+import sys, copy, re
 from parse import Parser
 from ast2 import *
 
@@ -315,7 +315,61 @@ class Generator:
     def printIR3(self):
         print(self.program.pprint())
 
-    def sortLabelAndTempId(self):
+    def trimLabels(self):
+        
+        for m in self.program.cMtdList:
+            newLabelMap = {}
+            stmts = m.mdBody.stmts
+            for i in range(len(stmts)):
+                if isinstance(stmts[i], LabelStmt) and \
+                   i + 1 < len(stmts) and isinstance(stmts[i+1], GotoStmt):
+                   newLabelMap[stmts[i].labelNum] = stmts[i+1].labelNum
+            for i in range(len(stmts)):
+                if isinstance(stmts[i], GotoStmt) or isinstance(stmts[i], IfStmt):
+                    stmts[i].labelNum = self.getLeaf(newLabelMap, stmts[i].labelNum)
+
+
+            usedLabels = set()
+            for s in m.mdBody.stmts:
+                if isinstance(s, IfStmt) or isinstance(s, GotoStmt):
+                    usedLabels.add(s.labelNum)
+
+            # Trim unused LabelStmt
+            n = len(m.mdBody.stmts)
+            i = 0
+            while i < n:
+                if isinstance(m.mdBody.stmts[i], LabelStmt):
+                    if m.mdBody.stmts[i].labelNum not in usedLabels:
+                        m.mdBody.stmts.pop(i)
+                        n -= 1
+                    else:
+                        i += 1
+                else:
+                    i += 1
+        
+            # Trim unreachable GotoStmt
+            n = len(m.mdBody.stmts)
+            i = 0
+            isPrevStmtGoto = False
+            while i < n:
+                if isinstance(m.mdBody.stmts[i], GotoStmt):
+                    if isPrevStmtGoto:
+                        m.mdBody.stmts.pop(i)
+                        n -= 1
+                    else:
+                        isPrevStmtGoto = True
+                        i += 1
+                else:
+                    isPrevStmtGoto = False
+                    i += 1
+            
+    def getLeaf(self, map, id):
+        while id in map:
+            id = map[id]
+        return id
+
+
+    def backpatch(self):
         self.nextLabelNum = 0        
 
         oldToNewLabel = {}
@@ -465,18 +519,10 @@ class Generator:
     
     def genStmtsFromBlock(self, stmts:'list[StmtNode]', attr:dict):
         stmtList = []
-        beginLabel = self.nextLabel()
         for i in range(len(stmts)):
             s = stmts[i]
             stmtAttr = copy.deepcopy(attr)
-            nextLabel = self.nextLabel()
-            stmtAttr['s.begin'] = beginLabel
-            stmtAttr['s.next'] = nextLabel
             stmtList += self.genStmtsFromStmt(s, stmtAttr)
-            if (i == len(stmts)-1):
-                stmtList += [LabelStmt(nextLabel)]
-            # s.next of prev stmt is s.begin of succeeding stmt
-            beginLabel = nextLabel
         return stmtList
 
     ################################################################################################
@@ -512,29 +558,29 @@ class Generator:
     def genStmtsFromIfStmt(self, s:StmtIfNode, attr:dict):
 
         stmtAttr = copy.deepcopy(attr)
-        stmtAttr['s.begin'] = attr['s.begin']
         stmtAttr['b.true'] = self.nextLabel()
         stmtAttr['b.false'] = self.nextLabel()
-        stmtAttr['s.next'] = attr['s.next']
+        stmtAttr['s.next'] = self.nextLabel()
         bStmts = self.genStmtsFromBoolOrExp(s.ifCondExp, stmtAttr)
         s1Stmts = self.genStmtsFromBlock(s.thenStmts, copy.deepcopy(attr))
         s2Stmts = self.genStmtsFromBlock(s.elseStmts, copy.deepcopy(attr))
 
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmtList += bStmts
         stmtList += [LabelStmt(stmtAttr['b.true'])]
         stmtList += s1Stmts
-        stmtList += [GotoStmt(attr['s.next'])]
+        stmtList += [GotoStmt(stmtAttr['s.next'])]
         stmtList += [LabelStmt(stmtAttr['b.false'])]
         stmtList += s2Stmts
+        stmtList += [LabelStmt(stmtAttr['s.next'])]
         return stmtList
 
     def genStmtsFromWhileStmt(self, s:StmtWhileNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
-        stmtAttr['s.begin'] = attr['s.begin']
+        stmtAttr['s.begin'] = self.nextLabel()
         stmtAttr['b.true'] = self.nextLabel()
-        stmtAttr['b.false'] = attr['s.next']
+        stmtAttr['b.false'] = self.nextLabel()
+        stmtAttr['s.next'] = stmtAttr['b.false']
         bStmts = self.genStmtsFromBoolOrExp(s.whileCondExp, stmtAttr)
         s1Stmts = self.genStmtsFromBlock(s.stmts, copy.deepcopy(attr))
 
@@ -543,14 +589,14 @@ class Generator:
         stmtList += bStmts
         stmtList += [LabelStmt(stmtAttr['b.true'])]
         stmtList += s1Stmts
-        stmtList += [GotoStmt(attr['s.begin'])]
+        stmtList += [GotoStmt(stmtAttr['s.begin'])]
+        stmtList += [LabelStmt(stmtAttr['s.next'])]
         return stmtList
 
     def genStmtsFromPrintStmt(self, s:StmtPrintNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
         e1Stmts, e1Addr = self.genStmtsFromExp(s.exp, stmtAttr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmtList += e1Stmts
         stmtList += [PrintStmt(e1Addr)]
         return stmtList
@@ -558,7 +604,6 @@ class Generator:
     def genStmtsFromReadStmt(self, s:StmtReadNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmtList += [ReadStmt(s.id)]
         return stmtList
     
@@ -566,7 +611,6 @@ class Generator:
         stmtAttr = copy.deepcopy(attr)
         e1Stmts, e1Addr = self.genStmtsFromExp(s.resultExp, stmtAttr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmtList += e1Stmts
         if s.varId in attr['localVars']:
             stmtList += [AssignIdStmt(s.varId, Exp(e1Addr))]
@@ -581,7 +625,6 @@ class Generator:
         e1Stmts, e1Addr = self.genStmtsFromExp(s.classExp, stmtAttr)
         e2Stmts, e2Addr = self.genStmtsFromExp(s.resultExp, stmtAttr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmtList += e1Stmts
         stmtList += e2Stmts
         #TODO: Need to review field assignment (how to update value AT THE ADDRESS)
@@ -591,7 +634,6 @@ class Generator:
     def genStmtsFromLocalCallStmt(self, s:StmtLocalCallNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
 
         argList = ["this"]
         argTypeList = [attr["cname"]]
@@ -611,7 +653,6 @@ class Generator:
     def genStmtsFromGlobalCallStmt(self, s:StmtGlobalCallNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         stmts, e1 = self.genStmtsFromExp(s.classExp, stmtAttr)
         stmtList += stmts
         argList = [e1]
@@ -631,7 +672,6 @@ class Generator:
     def genStmtsFromReturnStmt(self, s:StmtReturnNode, attr:dict):
         stmtAttr = copy.deepcopy(attr)
         stmtList = []
-        stmtList += [LabelStmt(stmtAttr['s.begin'])]
         if s.isVoid:
             stmtList += [ReturnStmt("")]
         else:
@@ -678,25 +718,31 @@ class Generator:
             if e.category == EXP_MUL: op = "*"
             if e.category == EXP_DIV: op = "/"
 
-            e0 = self.nextTempId()
             e1Stmts, e1Addr = self.genStmtsFromExp(e.firstExp, expAttr)
             e2Stmts, e2Addr = self.genStmtsFromExp(e.secondExp, expAttr)
-            stmt = AssignTypeIdStmt(e.type, e0, Exp(e1Addr, op, e2Addr))
+            if re.match(r"[0-9]+", e1Addr) is not None or re.match(r"\".*\"", e1Addr) is not None:
+                e0 = self.nextTempId()
+                stmt = AssignTypeIdStmt(e.type, e0, Exp(str(e1Addr), op, e2Addr))
+                e1Addr = e0
+            else:
+                stmt = AssignIdStmt(e1Addr, Exp(e1Addr, op, e2Addr))
             stmtList += e1Stmts
             stmtList += e2Stmts
             stmtList += [stmt]
-            return stmtList, e0
+            return stmtList, e1Addr
 
         if isinstance(e, ExpIntBaseNode):
             e1Stmts, e1Addr = self.genStmtsFromExp(e.exp, expAttr)
             stmtList += e1Stmts
             if e.isNegated:
-                e0 = self.nextTempId()
-                stmt = AssignTypeIdStmt(e.type, e0, Exp("-", e1Addr))
+                if re.match(r"[0-9]+", e1Addr) is not None:
+                    e0 = self.nextTempId()
+                    stmt = AssignTypeIdStmt(e.type, e0, Exp("-", str(e1Addr)))
+                    e1Addr = e0
+                else:
+                    stmt = AssignIdStmt(e1Addr, Exp("-", e1Addr))
                 stmtList += [stmt]
-                return stmtList, e0
-            else:
-                return stmtList, e1Addr
+            return stmtList, e1Addr
 
         if isinstance(e, ExpIntNode):
             return stmtList, e.val
@@ -723,7 +769,7 @@ class Generator:
 
         if isinstance(e, ExpLocalCallNode):
             argList = ["this"]
-            argTypeList = attr['cname']
+            argTypeList = [attr['cname']]
             # Process arg expression
             for a in e.args:
                 stmts, addr = self.genStmtsFromExp(a, expAttr)
@@ -868,5 +914,6 @@ if __name__ == '__main__':
 
     g = Generator(ast)
     g.genProgram()
-    g.sortLabelAndTempId()
+    g.trimLabels()
+    g.backpatch()
     g.printIR3()

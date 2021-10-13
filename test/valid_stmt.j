@@ -21,7 +21,7 @@ class Main {
             readln(x);
             println(c.copy().val);
             ((c.copy())).copy();
-            c.doNothing();
+            c.doNothing(c);
             (((c))).copy();
         }
         return;
