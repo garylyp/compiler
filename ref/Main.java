@@ -1,4 +1,6 @@
 public class Main {
+    public Integer t;
+
     public static void main(String[] args) {
         Integer i;
         Integer j = 2;
@@ -9,5 +11,11 @@ public class Main {
         s = s + j + s;
         System.out.println(s);
         System.out.println(j);
+        System.out.println(new Main().helper());
+    }
+
+    public int helper() {
+        t = 2;
+        return t;
     }
 }
