@@ -1242,7 +1242,7 @@ class Checker:
             ok = self.checkClassType(c) and ok
         
         if not ok:
-            errorF("error: type check failed")
+            errorF("type check failed")
         
     def checkClassType(self, classNode:ClassNode):
         cname = classNode.cname
