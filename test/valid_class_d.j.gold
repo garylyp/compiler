@@ -1,0 +1,94 @@
+======= CData3 =======
+
+class My_main_0123 { 
+}
+
+class Dummy { 
+  Int aa;
+  Bool bb;
+  String cc;
+  Dummy dd;
+  Int seeds;
+}
+
+=======  CMtd3 =======
+Void My_main_0123_0(My_main_0123 this,Int i2,String s2) { 
+  Dummy d;
+    Dummy _e0 = new Dummy ();
+    d = _e0;
+    d.aa = 1;
+    Bool _e1 = true;
+    goto 1;
+  Label 0:
+    _e1 = false;
+  Label 1:
+    d.bb = _e1;
+    d.cc = " ";
+    Dummy _e2 = new Dummy ();
+    d.dd = _e2;
+    Dummy _e3 = d . dd;
+    _e3.seeds = 0;
+    Dummy _e4 = d . dd;
+    String _e5 = d . cc;
+    _e4.cc = _e5;
+    Int _e6 = d . aa;
+    Bool _e7 = d . bb;
+    String _e8 = d . cc;
+    Dummy _e9 = d . dd;
+    Int _e10 = - 4567;
+    Bool _e11 = true;
+    Bool _e12 = Dummy_1(d);
+    if ( _e12 ) goto 2;
+    goto 3;
+  Label 2:
+    Bool _e13 = Dummy_1(d);
+    if ( _e13 ) goto 3;
+    goto 4;
+  Label 3:
+    _e11 = false;
+  Label 4:
+    Dummy _e14 = Dummy_0(d,_e6,_e7,_e8,_e9,_e10,_e11);
+    d.dd = _e14;
+    return ;
+}
+
+Dummy Dummy_0(Dummy this,Int a,Bool b,String c,Dummy d,Int e,Bool f) { 
+  Dummy gg;
+    Int _e0 = d . aa;
+    e = e + _e0;
+    e = e + a;
+    e = e + e;
+    Int _e1 = 02 * e;
+    e = e - _e1;
+    e = e + e;
+    e = e / e;
+    e = e - e;
+    if ( e > e ) goto 5;
+    goto 6;
+  Label 5:
+    Dummy _e2 = this . dd;
+    return _e2;
+    gg = NULL;
+    goto 7;
+  Label 6:
+    Dummy _e3 = new Dummy ();
+    gg = _e3;
+    gg.aa = a;
+    gg.bb = b;
+    gg.cc = c;
+    gg.dd = this;
+  Label 7:
+    return gg;
+}
+
+Bool Dummy_1(Dummy this) { 
+  Bool s;
+    readln(s);
+    Int _e0 = 1 + 2;
+    println(_e0);
+    this.cc = NULL;
+    Bool _e1 = Dummy_1(this);
+    return _e1;
+}
+
+

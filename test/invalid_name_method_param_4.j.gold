@@ -1,0 +1,1 @@
+Name check error: error: repeated method 'main' with identical parameter(s) ('Int', 'Bool') declaration in class 'Object' not allowed

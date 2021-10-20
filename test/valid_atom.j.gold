@@ -1,0 +1,63 @@
+======= CData3 =======
+
+class Atom { 
+}
+
+class Object { 
+  Object val;
+  Int val2;
+}
+
+=======  CMtd3 =======
+Void Atom_0(Atom this,Int a) { 
+  Object obj;
+  Atom atom;
+    Object _e0 = new Object ();
+    obj = _e0;
+    Atom _e1 = new Atom ();
+    atom = _e1;
+    Atom_0(atom,2);
+    obj.val = obj;
+    Object_0(obj);
+    Object_1(obj,1,1,1);
+    Object _e2 = new Object ();
+    Object _e3 = new Object ();
+    _e2.val = _e3;
+    Object _e4 = new Object ();
+    Object_0(_e4);
+    Object _e5 = new Object ();
+    Object_1(_e5,1,1,1);
+    Object_0(obj);
+    Object _e6 = Object_0(obj);
+    _e6.val2 = 2;
+    Object _e7 = Object_0(obj);
+    Object_0(_e7);
+    Object _e8 = Object_0(obj);
+    Object_1(_e8,1,1,1);
+    Object_1(obj,1,1,1);
+    Object_0(obj);
+    obj.val = NULL;
+    Object _e9 = obj . val;
+    Object_1(_e9,1,1,1);
+    Object _e10 = obj . val;
+    Object_0(_e10);
+    Object _e11 = obj . val;
+    Object _e12 = Object_0(_e11);
+    Object _e13 = new Object ();
+    _e12.val = _e13;
+    obj = NULL;
+    return ;
+}
+
+Object Object_0(Object this) { 
+    Object _e0 = this . val;
+    Object _e1 = _e0 . val;
+    Object _e2 = _e1 . val;
+    return _e2;
+}
+
+Void Object_1(Object this,Int a,Int b,Int c) { 
+    return ;
+}
+
+

@@ -1,0 +1,54 @@
+======= CData3 =======
+
+class My_main_0123 { 
+}
+
+class Color { 
+}
+
+=======  CMtd3 =======
+Void My_main_0123_0(My_main_0123 this,Int i2,String s2) { 
+  Color cc;
+    Color _e0 = new Color ();
+    cc = _e0;
+    cc = NULL;
+  Label 0:
+    Bool _e1 = true;
+    goto 2;
+  Label 1:
+    _e1 = false;
+  Label 2:
+    String _e2 = Color_0(cc);
+    String _e3 = Color_0(cc);
+    _e2 = _e2 + _e3;
+    String _e4 = Color_0(cc);
+    _e2 = _e2 + _e4;
+    _e2 = _e2 + "blue;";
+    Bool _e5 = Color_1(cc,_e1,_e2);
+    if ( _e5 ) goto 3;
+    goto 4;
+  Label 3:
+    Color_0(cc);
+    goto 0;
+  Label 4:
+    return ;
+}
+
+String Color_0(Color this) { 
+    return "red";
+}
+
+Bool Color_1(Color this,Bool y,String z) { 
+    Bool _e0 = true;
+    if ( y ) goto 6;
+    goto 5;
+  Label 5:
+    if ( y ) goto 7;
+    goto 6;
+  Label 6:
+    _e0 = false;
+  Label 7:
+    return _e0;
+}
+
+

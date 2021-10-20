@@ -1,0 +1,23 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  String s;
+  Void v;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  Clone c;
+  Int i;
+    return ;
+}
+
+Clone Clone_0(Clone this) { 
+    return this;
+    return NULL;
+}
+
+

@@ -1,0 +1,210 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  Int val;
+  Clone parent;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  String s;
+  Clone h;
+  Clone g;
+  Clone j;
+  Clone f;
+    Clone _e0 = new Clone ();
+    h = _e0;
+    h.val = 1;
+    h.parent = NULL;
+    g = h;
+    Clone _e1 = Clone_0(g);
+    Clone _e2 = Clone_0(h);
+    Clone _e3 = Clone_1(_e1,_e2);
+    f = _e3;
+    Bool _e4 = true;
+    Int _e5 = - 2;
+    _e5 = _e5 / 1;
+    if ( 3 > _e5 ) goto 4;
+    goto 4;
+    Clone _e6 = Clone_0(h);
+    Clone _e7 = Clone_0(_e6);
+    Clone _e8 = Clone_0(_e7);
+    Clone _e9 = _e8 . parent;
+    Clone _e10 = Clone_0(_e9);
+    Int _e11 = _e10 . val;
+    Int _e12 = - 1;
+    if ( _e11 == _e12 ) goto 0;
+    goto 0;
+  Label 0:
+    Bool _e13 = true;
+    goto 2;
+  Label 1:
+    _e13 = false;
+  Label 2:
+    Bool _e14 = Clone_2(f,_e13);
+    if ( _e14 ) goto 3;
+    goto 4;
+  Label 3:
+    _e4 = false;
+  Label 4:
+    println(_e4);
+    Clone _e15 = Clone_0(g);
+    Clone _e16 = _e15 . parent;
+    Clone _e17 = Clone_0(_e16);
+    Clone _e18 = _e17 . parent;
+    Clone _e19 = Clone_0(_e18);
+    Clone _e20 = Clone_0(g);
+    Clone _e21 = _e20 . parent;
+    Clone _e22 = Clone_1(_e19,_e21);
+    Int _e23 = _e22 . val;
+    Int _e24 = g . val;
+    _e23 = _e23 + _e24;
+    Int _e25 = h . val;
+    _e23 = _e23 + _e25;
+    Int _e26 = f . val;
+    _e23 = _e23 + _e26;
+    if ( _e23 > 0 ) goto 5;
+    goto 6;
+  Label 5:
+    readln(s);
+    Int _e27 = g . val;
+    Int _e28 = f . val;
+    _e27 = _e27 + _e28;
+    Clone _e29 = f . parent;
+    Int _e30 = _e29 . val;
+    _e27 = _e27 + _e30;
+    g.val = _e27;
+    Clone _e31 = Clone_0(g);
+    Clone _e32 = _e31 . parent;
+    String _e33 = Clone_3(_e32);
+    String _e34 = Clone_3(f);
+    _e33 = _e33 + _e34;
+    String _e35 = Clone_3(g);
+    _e33 = _e33 + _e35;
+    s = _e33;
+    s = s + s;
+    String _e36 = Clone_3(j);
+    s = s + _e36;
+    s = s + "cbparser";
+    s = s;
+    goto 7;
+  Label 6:
+    s = "Nothing\n";
+  Label 7:
+    return ;
+}
+
+Clone Clone_0(Clone this) { 
+  Clone c;
+    Clone _e0 = new Clone ();
+    c = _e0;
+    Int _e1 = this . val;
+    c.val = _e1;
+    c.parent = this;
+    return c;
+}
+
+Clone Clone_1(Clone this,Clone c) { 
+  Bool a;
+  Bool b;
+  Clone res;
+  Int x;
+    Bool _e0 = true;
+    Int _e1 = this . val;
+    Int _e2 = c . val;
+    if ( _e1 > _e2 ) goto 9;
+    goto 8;
+  Label 8:
+    _e0 = false;
+  Label 9:
+    a = _e0;
+    Bool _e3 = true;
+    Int _e4 = c . val;
+    Int _e5 = c . val;
+    _e4 = _e4 + _e5;
+    Int _e6 = c . val;
+    _e4 = _e4 + _e6;
+    Int _e7 = this . val;
+    _e4 = _e4 + _e7;
+    Int _e8 = c . val;
+    Int _e9 = 2 * _e8;
+    _e4 = _e4 - _e9;
+    Int _e10 = this . val;
+    Int _e11 = 1 * _e10;
+    _e4 = _e4 - _e11;
+    Int _e12 = this . val;
+    _e12 = _e12 + 0;
+    if ( _e4 >= _e12 ) goto 12;
+    goto 10;
+  Label 10:
+    if ( a ) goto 11;
+    goto 12;
+    if ( 2 > 1 ) goto 12;
+    goto 11;
+  Label 11:
+    _e3 = false;
+  Label 12:
+    b = _e3;
+    Clone _e13 = new Clone ();
+    res = _e13;
+    Int _e14 = this . val;
+    Int _e15 = c . val;
+    _e14 = _e14 - _e15;
+    res.val = _e14;
+    res.parent = c;
+    x = 2;
+  Label 13:
+    if ( x > 0 ) goto 14;
+    goto 16;
+  Label 14:
+    if ( a ) goto 15;
+    goto 16;
+  Label 15:
+    x = x - 1;
+    x = x;
+    Clone _e16 = Clone_0(res);
+    res = _e16;
+    goto 13;
+  Label 16:
+  Label 17:
+    if ( x > 0 ) goto 18;
+    goto 20;
+  Label 18:
+    if ( b ) goto 19;
+    goto 20;
+  Label 19:
+    Clone _e17 = Clone_0(res);
+    res = _e17;
+    x = x + x;
+    x = x + x;
+    x = x / x;
+    x = x + x;
+    x = x - 1;
+    x = x * 2;
+    x = x - x;
+    x = x;
+    goto 17;
+  Label 20:
+    Clone_0(res);
+    Clone _e18 = res . parent;
+    return _e18;
+}
+
+Bool Clone_2(Clone this,Bool x) { 
+    Bool _e0 = true;
+    if ( x ) goto 22;
+    goto 22;
+  Label 21:
+    _e0 = false;
+  Label 22:
+    return _e0;
+}
+
+String Clone_3(Clone this) { 
+    return "c ";
+}
+
+

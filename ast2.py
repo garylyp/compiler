@@ -1141,7 +1141,7 @@ class Checker:
         self.classTypes[programNode.mainClass.cname] = None
         for c in programNode.classes:
             if self.isExistingType(c.cname):
-                errorF(f'error: repeated classname \'{c.cname}\' declaration not allowed')
+                errorF(f'repeated classname \'{c.cname}\' declaration not allowed')
             self.classTypes[c.cname] = None
         
         # Check main class
@@ -1164,11 +1164,11 @@ class Checker:
         fields = {}
         for c in classNode.fields:
             if c.id in fields:
-                errorF(f'error: repeated field \'{c.id}\' declaration in class \'{classNode.cname}\' not allowed')
+                errorF(f'repeated field \'{c.id}\' declaration in class \'{classNode.cname}\' not allowed')
             
             # Checking for type as well
             if not self.isExistingType(c.type):
-                errorF(f'error: field \'{c.id}\' declaration in class \'{classNode.cname}\' using non-' + \
+                errorF(f'field \'{c.id}\' declaration in class \'{classNode.cname}\' using non-' + \
                     f'existent type \'{c.type}\'')
             fields[c.id] = c.type
         return fields
@@ -1181,7 +1181,7 @@ class Checker:
         for m in classNode.methods:
             info = self.checkClassMethodParameterNames(m)
             if m.id in msigs and info.argTypes in msigs[m.id]:
-                errorF(f'error: repeated method \'{m.id}\' with identical ' + \
+                errorF(f'repeated method \'{m.id}\' with identical ' + \
                     f'parameter(s) {info.argTypes} declaration in class ' +\
                     f'\'{classNode.cname}\' not allowed')
             elif m.id in msigs:
@@ -1199,29 +1199,29 @@ class Checker:
         argTypes = []
         # Checking for type as well
         if not self.isExistingType(m.returnType):
-            errorF(f'error: method \'{m.id}\' declaration in class using non-' + \
+            errorF(f'method \'{m.id}\' declaration in class using non-' + \
                 f'existent return type \'{m.returnType}\'')
 
         for f in methodNode.formals:
             if f.id in m.formals:
-                errorF(f'error: repeated formal parameter \'{f.id}\' in method \'{m.id}\' not allowed')
+                errorF(f'repeated formal parameter \'{f.id}\' in method \'{m.id}\' not allowed')
 
             # Checking for type as well
             if not self.isExistingType(f.type):
-                errorF(f'error: formals \'{f.id}\' declaration in method \'{m.id}\' using non-' + \
+                errorF(f'formals \'{f.id}\' declaration in method \'{m.id}\' using non-' + \
                     f'existent type \'{f.type}\'')
             m.formals[f.id] = f.type
             argTypes.append(f.type)
         for a in methodNode.actuals:
             if a.id in m.actuals:
-                errorF(f'error: repeated actual parameter \'{a.id}\' declaration in ' + \
+                errorF(f'repeated actual parameter \'{a.id}\' declaration in ' + \
                     f'method \'{m.id}\' not allowed')
             if a.id in m.formals:
-                errorF(f'error: actual parameter \'{a.id}\' overlaps formal parameter'+ \
+                errorF(f'actual parameter \'{a.id}\' overlaps formal parameter'+ \
                     f' in method \'{m.id}\' not allowed')
             # Checking for type as well
             if not self.isExistingType(a.type):
-                errorF(f'error: formals \'{a.id}\' declaration in method \'{m.id}\' ' + \
+                errorF(f'formals \'{a.id}\' declaration in method \'{m.id}\' ' + \
                     f'using non-existent type \'{a.type}\'')
 
             m.actuals[a.id] = a.type

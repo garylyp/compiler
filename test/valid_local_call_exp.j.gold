@@ -1,0 +1,28 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  Clone other;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  Int i;
+    i = 2;
+}
+
+Void Clone_0(Clone this) { 
+    Clone _e0 = Clone_1(this);
+    Clone _e1 = this . other;
+    _e1 = _e0;
+    return ;
+}
+
+Clone Clone_1(Clone this) { 
+    Clone _e0 = this . other;
+    return _e0;
+}
+
+

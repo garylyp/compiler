@@ -1,0 +1,22 @@
+======= CData3 =======
+
+class Mainn { 
+}
+
+class Object { 
+}
+
+=======  CMtd3 =======
+Void Mainn_0(Mainn this) { 
+    return ;
+}
+
+Void Object_0(Object this,Int x,Bool y) { 
+    return ;
+}
+
+String Object_1(Object this,Int x) { 
+    return "s";
+}
+
+

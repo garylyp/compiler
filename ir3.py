@@ -94,7 +94,11 @@ class MdBody:
         for vd in self.varDecl:
             res = res + f'  {vd.pprint()};\n'
         for s in self.stmts:
-            res = res + f'{s.pprint()}\n'
+            if isinstance(s, list):
+                for ss in s:
+                    print("   ", ss.pprint())
+            else:
+                res = res + f'{s.pprint()}\n'
         return res
 
 class VarDecl:
@@ -812,16 +816,26 @@ class Generator:
             return stmtList, "NULL"
 
 
-    def genStmtsFromBoolOrExp(self, b:ExpBoolOrNode, attr:dict):
+    def genStmtsFromBoolOrExp(self, b:ExpNode, attr:dict):
         stmtList = []
-        for i in range(len(b.andExps)):
+        if isinstance(b, ExpBoolOrNode):
+            for i in range(len(b.andExps)):
+                exprAttr = copy.deepcopy(attr)
+                exprAttr['b1.true'] = attr['b.true']
+                exprAttr['b1.false'] = self.nextLabel()
+                b1Stmts = self.genStmtsFromBoolAndExp(b.andExps[i], exprAttr)
+                stmtList += b1Stmts
+                stmtList += [LabelStmt(exprAttr['b1.false'])]
+            stmtList += [GotoStmt(exprAttr['b.false'])]
+        else:
             exprAttr = copy.deepcopy(attr)
-            exprAttr['b1.true'] = attr['b.true']
-            exprAttr['b1.false'] = self.nextLabel()
-            b1Stmts = self.genStmtsFromBoolAndExp(b.andExps[i], exprAttr)
-            stmtList += b1Stmts
-            stmtList += [LabelStmt(exprAttr['b1.false'])]
-        stmtList += [GotoStmt(exprAttr['b.false'])]
+            e1Stmts, e1Addr = self.genStmtsFromExp(b, exprAttr)
+            ifStmt = IfStmt()
+            ifStmt.labelNum = exprAttr['b.true']
+            ifStmt.relExp = RelExp(e1Addr)
+            stmtList += e1Stmts
+            stmtList += [ifStmt]
+            stmtList += [GotoStmt(exprAttr['b.false'])]
         return stmtList
 
     def genStmtsFromBoolAndExp(self, b:ExpBoolAndNode, attr:dict):

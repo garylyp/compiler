@@ -1,0 +1,6 @@
+Type of while conditional exp 'Int' must be Bool in Main.main
+Type of last stmt String does not match return type Void of method Main.main
+Type of if conditional exp 'String' must be Bool in Clone.methoda
+Type of return stmt Bool does not match return type String of method Clone.methoda
+Type of then and else block of if stmt must be equal but got String and Bool in Clone.methoda
+Name check error: error: type check failed

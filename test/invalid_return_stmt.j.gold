@@ -1,0 +1,9 @@
+Type of return stmt Clone does not match return type Void of method Main.main
+Type of return stmt Int does not match return type Void of method Main.main
+Type of last stmt Int does not match return type Void of method Main.main
+Type of return stmt Int does not match return type Clone of method Clone.methoda
+Type of return stmt String does not match return type Clone of method Clone.methoda
+Type of return stmt Bool does not match return type Clone of method Clone.methoda
+Type of return stmt Void does not match return type Clone of method Clone.methoda
+Type of last stmt Void does not match return type Clone of method Clone.methoda
+Name check error: error: type check failed

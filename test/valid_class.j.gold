@@ -1,0 +1,158 @@
+======= CData3 =======
+
+class My_main_0123 { 
+}
+
+class Apple { 
+  Int seeds;
+  Color color;
+  Bool isripe;
+}
+
+class Banana { 
+}
+
+class Color { 
+}
+
+class Dummy { 
+  Apple aa;
+  Banana bb;
+  Color cc;
+  Dummy dd;
+  Int s;
+}
+
+=======  CMtd3 =======
+Void My_main_0123_0(My_main_0123 this,Int i2,String s2) { 
+  Dummy d;
+    Dummy _e0 = new Dummy ();
+    d = _e0;
+    Apple _e1 = new Apple ();
+    d.aa = _e1;
+    Banana _e2 = new Banana ();
+    d.bb = _e2;
+    Color _e3 = new Color ();
+    d.cc = _e3;
+    Dummy _e4 = new Dummy ();
+    d.dd = _e4;
+    Apple _e5 = d . aa;
+    _e5.seeds = 0;
+    Apple _e6 = d . aa;
+    Color _e7 = d . cc;
+    _e6.color = _e7;
+    Apple _e8 = d . aa;
+    Banana _e9 = d . bb;
+    Color _e10 = d . cc;
+    Dummy _e11 = d . dd;
+    Apple _e12 = d . aa;
+    Int _e13 = _e12 . seeds;
+    Bool _e14 = true;
+    Apple _e15 = d . aa;
+    Bool _e16 = _e15 . isripe;
+    if ( _e16 ) goto 0;
+    goto 1;
+  Label 0:
+    Apple _e17 = d . aa;
+    Bool _e18 = _e17 . isripe;
+    if ( _e18 ) goto 2;
+    goto 1;
+  Label 1:
+    _e14 = false;
+  Label 2:
+    Dummy _e19 = Dummy_0(d,_e8,_e9,_e10,_e11,_e13,_e14);
+    d.dd = _e19;
+    return ;
+}
+
+String Color_0(Color this) { 
+    return "red";
+}
+
+Bool Color_1(Color this,Bool y,Int z) { 
+    Bool _e0 = true;
+    goto 4;
+  Label 3:
+    _e0 = false;
+  Label 4:
+    return _e0;
+}
+
+Dummy Dummy_0(Dummy this,Apple a,Banana b,Color c,Dummy d,Int e,Bool f) { 
+  Dummy gg;
+    Apple _e0 = d . aa;
+    Int _e1 = _e0 . seeds;
+    e = e + _e1;
+    Int _e2 = a . seeds;
+    e = e + _e2;
+    e = e + e;
+    Int _e3 = 02 * e;
+    e = e - _e3;
+    e = e + e;
+    e = e / e;
+    e = e - e;
+    if ( e > e ) goto 5;
+    goto 6;
+  Label 5:
+    gg = NULL;
+    goto 7;
+  Label 6:
+    Dummy _e4 = new Dummy ();
+    gg = _e4;
+    gg.aa = a;
+    gg.bb = b;
+    gg.cc = c;
+    gg.dd = this;
+    Apple _e5 = gg . aa;
+    e = e + 2;
+    _e5.seeds = e;
+    Apple _e6 = gg . aa;
+    _e6.isripe = f;
+    Apple _e7 = gg . aa;
+    Color _e8 = gg . cc;
+    _e7.color = _e8;
+  Label 7:
+    return gg;
+}
+
+Bool Dummy_1(Dummy this) { 
+    readln(s);
+    Int _e0 = 1 + 2;
+    println(_e0);
+    this.cc = NULL;
+    Apple _e1 = this . aa;
+    Color _e2 = _e1 . color;
+    Bool _e3 = true;
+    Apple _e4 = this . aa;
+    Color _e5 = _e4 . color;
+    Bool _e6 = true;
+    goto 8;
+  Label 8:
+    _e6 = false;
+  Label 9:
+    Int _e7 = - 1;
+    Bool _e8 = Color_1(_e5,_e6,_e7);
+    if ( _e8 ) goto 14;
+    goto 10;
+  Label 10:
+    Apple _e9 = this . aa;
+    Color _e10 = _e9 . color;
+    Bool _e11 = true;
+    goto 11;
+  Label 11:
+    _e11 = false;
+  Label 12:
+    Bool _e12 = Color_1(_e10,_e11,1);
+    if ( _e12 ) goto 14;
+    goto 13;
+  Label 13:
+    _e3 = false;
+  Label 14:
+    Int _e13 = this . s;
+    Int _e14 = this . s;
+    _e13 = _e13 * _e14;
+    Bool _e15 = Color_1(_e2,_e3,_e13);
+    return _e15;
+}
+
+
