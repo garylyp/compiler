@@ -1,0 +1,31 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  Clone c;
+  Int i;
+    Clone _e0 = new Clone ();
+    c = _e0;
+    i = 2;
+    println(i);
+    println("2");
+    Bool _e1 = Clone_0(c);
+    println(_e1);
+}
+
+Bool Clone_0(Clone this) { 
+    Bool _e0 = true;
+    goto 1;
+  Label 0:
+    _e0 = false;
+  Label 1:
+    return _e0;
+}
+
+

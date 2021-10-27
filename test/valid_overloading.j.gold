@@ -1,0 +1,59 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  Clone other;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  Clone c;
+  String s;
+    Clone_0(c,1);
+    Bool _e0 = true;
+    goto 0;
+  Label 0:
+    _e0 = false;
+  Label 1:
+    Clone_1(c,_e0);
+    Clone _e1 = new Clone ();
+    String _e2 = Clone_2(c,5,_e1);
+    s = _e2;
+    println(s);
+}
+
+Void Clone_0(Clone this,Int x) { 
+    Clone _e0 = new Clone ();
+    Clone _e1 = this . other;
+    _e1 = _e0;
+    return ;
+}
+
+Void Clone_1(Clone this,Bool y) { 
+    return ;
+}
+
+String Clone_2(Clone this,Int x,Clone c) { 
+  String s;
+    this.other = c;
+    s = "cbty";
+  Label 2:
+    if ( x >= 0 ) goto 3;
+    goto 4;
+  Label 3:
+    s = s + "peche";
+    s = s;
+    x = x - 1;
+    x = x;
+    s = s + "ckercbty";
+    s = s;
+    goto 2;
+  Label 4:
+    s = s + "cker";
+    s = s;
+    return s;
+}
+
+

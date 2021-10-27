@@ -1,0 +1,3 @@
+Type of method methoda() not found in Clone for local call exp in Clone.methodb
+Type of variable assign stmt variable 'Clone' for var 'other' should be same as exp type 'Void' in Clone.methodb
+Name check error: error: type check failed

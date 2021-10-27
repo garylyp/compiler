@@ -32,6 +32,7 @@ class Lexer:
     
     def reset(self):
         self.tokens = []
+        self.linenos = []
         self.buffer = ""
         self.state = STATE_START
         self.end_of_line = False
@@ -42,6 +43,7 @@ class Lexer:
     def flush(self):
         if self.buffer:
             self.tokens.append(str(self.buffer))
+            self.linenos.append(int(self.lineno))
             res = self.buffer
             # print(self.buffer, end =' ')
             # sys.stdout.flush()

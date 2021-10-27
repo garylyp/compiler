@@ -1,0 +1,3 @@
+Type of read stmt variable must be Int, Bool or String but encounter Clone in Main.main
+Type of read stmt variable must be Int, Bool or String but encounter Void in Main.main
+Name check error: error: type check failed

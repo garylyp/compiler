@@ -1,0 +1,68 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  Bool b;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  Int i;
+  Bool b;
+  String s;
+    i = 2;
+    Bool _e0 = true;
+    goto 1;
+  Label 0:
+    _e0 = false;
+  Label 1:
+    b = _e0;
+  Label 2:
+    if ( i > 2 ) goto 6;
+    goto 3;
+  Label 3:
+    if ( i <= 1 ) goto 6;
+    goto 4;
+  Label 4:
+    if ( i == 2 ) goto 5;
+    goto 7;
+  Label 5:
+    if ( b ) goto 6;
+    goto 7;
+  Label 6:
+    Clone _e1 = new Clone ();
+    String _e2 = Clone_0(_e1);
+    s = _e2;
+    goto 2;
+  Label 7:
+}
+
+String Clone_0(Clone this) { 
+  String s;
+    s = "HAHAHA";
+    Bool _e0 = this . b;
+    if ( _e0 ) goto 8;
+    goto 8;
+  Label 8:
+    Bool _e1 = true;
+    goto 10;
+  Label 9:
+    _e1 = false;
+  Label 10:
+    Bool _e2 = this . b;
+    _e2 = _e1;
+    s = s + "1";
+    return s;
+    goto 12;
+  Label 11:
+    Clone_1(this);
+  Label 12:
+}
+
+String Clone_1(Clone this) { 
+    return NULL;
+}
+
+

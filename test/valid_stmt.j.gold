@@ -1,0 +1,82 @@
+======= CData3 =======
+
+class Main { 
+}
+
+class Clone { 
+  Int val;
+  Clone parent;
+  Bool bl;
+}
+
+=======  CMtd3 =======
+Void Main_0(Main this) { 
+  String s;
+  Clone c;
+  Int x;
+    x = 2;
+    Clone _e0 = new Clone ();
+    c = _e0;
+    c.val = x;
+    Clone_0(c);
+    Clone _e1 = Clone_0(c);
+    _e1.parent = c;
+    Clone _e2 = Clone_0(c);
+    c = _e2;
+    if ( x == 0 ) goto 0;
+    goto 1;
+  Label 0:
+    x = 2;
+    goto 2;
+  Label 1:
+    s = "hello world";
+    s = s + s;
+    s = s;
+  Label 2:
+  Label 3:
+    if ( x > 0 ) goto 7;
+    goto 4;
+  Label 4:
+    Int _e3 = 1 * 2;
+    Int _e4 = 0 - _e3;
+    if ( x != _e4 ) goto 5;
+    goto 6;
+  Label 5:
+    if ( 0 < x ) goto 7;
+    goto 6;
+  Label 6:
+    Bool _e5 = c . bl;
+    if ( _e5 ) goto 8;
+    goto 7;
+  Label 7:
+    x = x - 1;
+    x = x;
+    readln(x);
+    Clone _e6 = Clone_0(c);
+    Int _e7 = _e6 . val;
+    println(_e7);
+    Clone _e8 = Clone_0(c);
+    Clone_0(_e8);
+    Clone_1(c,c);
+    Clone_0(c);
+    goto 3;
+  Label 8:
+    return ;
+}
+
+Clone Clone_0(Clone this) { 
+  Clone c;
+    Clone_1(this,c);
+    Clone _e0 = new Clone ();
+    c = _e0;
+    Int _e1 = this . val;
+    c.val = _e1;
+    c.parent = this;
+    return c;
+}
+
+Void Clone_1(Clone this,Clone c) { 
+    return ;
+}
+
+
