@@ -15,9 +15,8 @@ class Main {
         if (g.copy().parent.copy().parent.copy().diff(g.copy().parent).val + g.val + h.val + f.val > 0) {
             readln(s);
             g.val = g.val + f.val + f.parent.val;
-            s = g.copy().parent.toString();
-            s = j.toString();
-            s = "cbparser";
+            s = g.copy().parent.toString() + f.toString() + g.toString();
+            s = s + s + j.toString() + "cbparser";
         } else {
             s = "Nothing\n";
         }
@@ -52,8 +51,7 @@ class Clone {
         res.val = this.val - c.val;
         res.parent = c;
 
-        a = true;
-        x = 5;
+        x = 2;
         while (x > 0 && a) {
             x = x - 1;
             res = res.copy();

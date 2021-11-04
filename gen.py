@@ -5,10 +5,13 @@ from io import TextIOWrapper
 
 from parse import Parser
 from ast2 import *
-from ir3 import Generator
+from ir3 import Generator, Program
 
 class Gen:
-    def genIR3(self, f: TextIOWrapper) -> str:
+    """
+    ARM Code Generator
+    """
+    def genIR3(self, f: TextIOWrapper) -> Program:
         p = Parser(f)
         parseTree = p.parse()
         f.close()
@@ -21,11 +24,16 @@ class Gen:
 
         g = Generator(ast)
         g.genProgram()
-        g.trimLabels()
+        g.optimize()
         g.backpatch()
         g.printIR3()
 
-        self.ir3 = g.program.pprint()
+        self.ir3 = g.program
+
+
+    # def genArm(self):
+    #     self.genHeader(self.ir3)
+    #     self.genText(self.ir3)
 
 if __name__ == '__main__':
     if (len(sys.argv) < 2):

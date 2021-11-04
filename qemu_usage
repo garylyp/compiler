@@ -1,0 +1,2 @@
+arm-linux-gnueabi-gcc -o hello hello.s --static
+qemu-arm hello
