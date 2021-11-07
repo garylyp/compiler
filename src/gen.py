@@ -8,9 +8,6 @@ from ast2 import *
 from ir3 import Generator, Program
 
 class Gen:
-    """
-    ARM Code Generator
-    """
     def genIR3(self, f: TextIOWrapper) -> Program:
         p = Parser(f)
         parseTree = p.parse()
@@ -29,11 +26,6 @@ class Gen:
         g.printIR3()
 
         self.ir3 = g.program
-
-
-    # def genArm(self):
-    #     self.genHeader(self.ir3)
-    #     self.genText(self.ir3)
 
 if __name__ == '__main__':
     if (len(sys.argv) < 2):

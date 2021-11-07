@@ -267,12 +267,12 @@ class Generator:
     def gen(self) -> Program:
         """
         Entrypoint
-        
+
         Returns a data structure representing IR3
         """
-        g.genProgram()
-        g.optimize()
-        g.backpatch()
+        self.genProgram()
+        self.optimize()
+        self.backpatch()
         return self.program
 
     ################################################################################################
@@ -340,13 +340,16 @@ class Generator:
             self.trimUnreachableCode(m)
             self.trimUnusedLabels(m)
             
-            self.trimUnusedIf(m)
-            self.trimUnreachableCode(m)
-            self.trimUnusedLabels(m)
+            n = len(m.mdBody.stmts) + 1
+            while len(m.mdBody.stmts) != n:
+                n = len(m.mdBody.stmts)
+                self.trimUnusedIf(m)
+                self.trimUnusedGoto(m)
+                self.trimConsecutiveHopsAndLabels(m)
+                self.trimUnreachableCode(m)
+                self.trimUnusedLabels(m)
 
-            self.trimUnusedGoto(m)
-            self.trimConsecutiveHopsAndLabels(m)
-            self.trimUnusedLabels(m)
+
     
     def trimConsecutiveHopsAndLabels(self, m:'CMtd'):
         """
