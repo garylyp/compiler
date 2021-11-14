@@ -1,2 +1,13 @@
-arm-linux-gnueabi-gcc -o hello hello.s --static
+# Compile ARM code and run
+arm-linux-gnueabi-gcc -o hello valid_hello_sample.s --static
 qemu-arm hello
+
+# Compile C code and run
+arm-linux-gnueabi-gcc -o hello hello.c --static
+qemu-arm hello
+
+# Gen ARM code from C
+arm-linux-gnueabi-gcc  -S ./test/Hello.c -o ./test/Hello.s
+
+
+sed -i 's/\r$//g' valid_hello.s

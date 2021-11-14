@@ -198,11 +198,11 @@ class AssignFieldStmt(Stmt):
         return res
 
 class CallStmt(Stmt):
-    callExp:'CallExp'
-    def __init__(self, callExp:'CallExp') -> None:
-        self.callExp = callExp
+    exp:'CallExp'
+    def __init__(self, exp:'CallExp') -> None:
+        self.exp = exp
     def pprint(self):
-        res = f'    {self.callExp.pprint()};'
+        res = f'    {self.exp.pprint()};'
         return res
 
 class ReturnStmt(Stmt):
@@ -234,6 +234,7 @@ class RelExp(Exp):
 class CallExp(Exp):
     methodId:str
     args:'list[str]'
+    items:'list[str]' # same as args, for easier handling of exp
     def __init__(self, methodId:str, args:'list[str]') -> None:
         self.methodId = methodId
         self.args = args
@@ -414,7 +415,7 @@ class Generator:
         i = 0
         isUnreachable = False
         while i < n:
-            if not isUnreachable and isinstance(m.mdBody.stmts[i], GotoStmt):
+            if not isUnreachable and (isinstance(m.mdBody.stmts[i], GotoStmt) or isinstance(m.mdBody.stmts[i], ReturnStmt)):
                 i += 1
                 isUnreachable = True
 
@@ -518,9 +519,9 @@ class Generator:
                         if s.exp.items[i] in oldToNewTempId:
                             s.exp.items[i] = oldToNewTempId[s.exp.items[i]]
                 if isinstance(s, CallStmt):
-                    for i in range(len(s.callExp.args)):
-                        if s.callExp.args[i] in oldToNewTempId:
-                            s.callExp.args[i] = oldToNewTempId[s.callExp.args[i]]
+                    for i in range(len(s.exp.args)):
+                        if s.exp.args[i] in oldToNewTempId:
+                            s.exp.args[i] = oldToNewTempId[s.exp.args[i]]
                 if isinstance(s, IfStmt):
                     for i in range(len(s.relExp.items)):
                         if s.relExp.items[i] in oldToNewTempId:
@@ -911,7 +912,7 @@ class Generator:
             return stmtList, e0
             
         if isinstance(e, ExpNullNode):
-            return stmtList, "NULL"
+            return stmtList, "null"
 
 
     def genStmtsFromBoolOrExp(self, b:ExpNode, attr:dict):

@@ -41,8 +41,7 @@ class Compiler:
 
     def genARM(self, program:'Program') -> str:
         a = ArmGenerator(program)
-        for m in program.cMtdList:
-            r = a.buildCFG(m)
+        a.genArm()
 
 
 def readFile():
