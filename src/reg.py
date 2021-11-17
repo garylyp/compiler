@@ -33,6 +33,9 @@ def isIntLiteral(s):
 def isBoolLiteral(s):
     return s in ["true", "false"]
 
+def isArithOp(s):
+    return s in ["+", "-", "*", "/"]
+
 ################################################################################################
 
 # CFG
@@ -151,7 +154,7 @@ class CFG:
         for blockName in self.blockMap:
             block = self.blockMap[blockName]
             if not block.stmts:
-                print(f'Build CFG Error: empty block {blockName}')
+                # print(f'Build CFG Error: empty block {blockName}')
                 continue
                 
             lastStmt = block.stmts[-1]
@@ -380,7 +383,7 @@ class RegAllocator:
     """
 
     def __init__(self, cMtd:'CMtd', symbolTable:'SymbolTable') -> None:
-        self.memCnt = 0
+        self.memCnt = INITITAL_STK_SPACE # reserved for values that need to be preserved in a1-a4
         self.cMtd = cMtd
         self.symbolTable = symbolTable
 
@@ -519,7 +522,7 @@ class RegAllocator:
                             self.varToReg.pop(vToSpill, None)
 
                             if isVar(vToSpill):
-                                self.getReg(vToSpill, b, i)
+                                self.getReg(vToSpill, b, i, True)
 
                         elif reqReg in self.regPool: 
                             self.regPool.remove(reqReg)
@@ -569,7 +572,7 @@ class RegAllocator:
             # # - only used some time later (live but NOT IN curr use set)
             # # - not currently defined     (live but NOT IN curr def set)
             currVars = set()
-            for v in b.blockInfo.usePerLine[i]:
+            for v in b.blockInfo.usePerLine[i].union(b.blockInfo.defPerLine[i]):
                 currVars.add(v)
             for v in b.blockInfo.livePerLine[i]:
                 if v in b.blockInfo.defPerLine[i]:
@@ -586,10 +589,22 @@ class RegAllocator:
             b.blockInfo.regToVarPerLine[i].update(self.regToVar)
 
     
-    def getReg(self, v:'str', b:'Block', i:'int'):
+    def getReg(self, v:'str', b:'Block', i:'int', mustBeV=False):
         if v in self.varToReg:
             return
         # Have available registers
+        if mustBeV and self.regPool:
+            i = len(self.regPool) - 1
+            while i >= 0:
+                if "v" in self.regPool[i]:
+                    reg = self.regPool[i]
+                    self.regPool.remove(reg)
+                    break
+                i -= 1
+            self.varToReg[v] = reg
+            self.regToVar[reg] = v
+            self.usedVRegs.add(reg)
+            return
         if self.regPool:
             reg = self.regPool.pop()
             self.varToReg[v] = reg
@@ -717,6 +732,7 @@ def getUseVarFromStmt(s:'Stmt') -> 'set[str]':
 
     elif isinstance(s, AssignFieldStmt):
         res.update(getUseVarFromExp(s.exp))
+        res.add(s.classId)
 
     elif isinstance(s, CallStmt):
         res.update(getUseVarFromExp(s.exp))
@@ -784,7 +800,15 @@ def hasCall(s:'Stmt') -> bool:
 
     return False
 
-def getUnusedReg(usedReg) -> 'set[str]':
+def getUnusedReg(usedReg, mustBeV = False) -> 'str':
+    """
+    Returns any unused reg
+    """
     usedRegs = set([reg for reg in usedReg])
-    allRegs = set(["_v5", "_v4", "_v3", "_v2", "_v1", "_a4", "_a3", "_a2", "_a1"])
-    return allRegs - usedRegs
+    if mustBeV:
+        allRegs = set(["_v5", "_v4", "_v3", "_v2", "_v1"])
+    else:
+        allRegs = set(["_v5", "_v4", "_v3", "_v2", "_v1", "_a4", "_a3", "_a2", "_a1"])
+    unusedRegs = allRegs - usedRegs
+    return unusedRegs.pop()
+    

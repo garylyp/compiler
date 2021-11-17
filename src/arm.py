@@ -5,7 +5,7 @@ from ir3 import Program, CMtd, CData
 from reg import *
 from constants import *
 
-verbose = False
+verbose = 0
 
 class ArmLine:
     body:'list[str]'
@@ -220,18 +220,18 @@ class ArmGenerator:
         for b in r.cfg.blockMap:
             block = r.cfg.blockMap[b]
             if verbose:
-                # print()
-                # print(b, [p.name for p in block.parents], [c.name for c in block.children])
-                # print("Live in: ", block.inVars)
-                # for i in range(len(block.stmts)):
-                #     print(i, block.stmts[i].pprint())
-                #     print("Live: ", block.blockInfo.livePerLine[i])
-                #     print("Use : ", block.blockInfo.usePerLine[i])
-                #     print("Def : ", block.blockInfo.defPerLine[i]) 
-                #     print("VarR: ", block.blockInfo.varToRegPerLine[i])
-                #     print("VarM: ", block.blockInfo.varToMemPerLine[i])
-                #     print("RegV: ", block.blockInfo.regToVarPerLine[i])
-                #     print("StkV: ", block.blockInfo.stkToVarPerLine[i])
+                print()
+                print(b, [p.name for p in block.parents], [c.name for c in block.children])
+                print("Live in: ", block.inVars)
+                for i in range(len(block.stmts)):
+                    print(i, block.stmts[i].pprint())
+                    print("Live: ", block.blockInfo.livePerLine[i])
+                    print("Use : ", block.blockInfo.usePerLine[i])
+                    print("Def : ", block.blockInfo.defPerLine[i]) 
+                    print("VarR: ", block.blockInfo.varToRegPerLine[i])
+                    print("VarM: ", block.blockInfo.varToMemPerLine[i])
+                    print("RegV: ", block.blockInfo.regToVarPerLine[i])
+                    print("StkV: ", block.blockInfo.stkToVarPerLine[i])
                 print("Live out: ", block.outVars)
         return r
 
@@ -253,6 +253,14 @@ class ArmGenerator:
         stmfdLine.addArg("sp!")
         stmfdLine.addArg("{%s}" % ",".join(toPush))
         lines.append(stmfdLine)
+
+        # update fp
+        fpOffsetFromSp = (methodInfo.memCnt + len(toPush) - 1) * 4
+        addFpLine = ArmInstLine(ARM_ADD)
+        addFpLine.addArg("fp")
+        addFpLine.addArg("sp")
+        addFpLine.addArg(formatIntLiteral(str(fpOffsetFromSp)))
+        lines.append(addFpLine)
 
         for blockName in methodInfo.cfg.blockMap:
             block = methodInfo.cfg.blockMap[blockName]
@@ -283,9 +291,21 @@ class ArmGenerator:
 
         stmt = b.stmts[i]
         bf = b.blockInfo
-        # should re-update variables that were used in earlier lines but change regs in this line
-        # mov ...
-        # mov ...
+        toMov = {}
+        if b.name == "B0" and i == 0:
+            currArgs = [f.id for f in self.symbolTable.getMethodInfo(self.currMethodId).cMtd.formals]
+            for j in range(min(len(currArgs),4)):
+                v = currArgs[j]
+                if v not in bf.varToRegPerLine[i]: continue
+                oldReg = f'_a{j+1}'
+                newReg = bf.varToRegPerLine[i][v]
+                if oldReg != newReg:
+                    toMov[formatRegName(oldReg)] = formatRegName(newReg)
+
+        lines += self.genMovRegArm(bf, i, toMov)
+        lines += self.genLdrRegArm(bf, i)
+        if hasCall(stmt):
+            lines += self.storeARegs([1,2,3,4], bf, i)
 
         if isinstance(stmt, LabelStmt):
             lines += self.genLabelStmtArm(stmt, bf, i)
@@ -316,6 +336,72 @@ class ArmGenerator:
 
         return lines
 
+    def genMovRegArm(self, bf:'BlockInfo', i:'int', otherRToMov={}) -> 'list[ArmLine]':
+        """
+        Mov regs to other regs so that live regs can be preserved
+        """
+        lines = []
+        rToMov = {}
+        rToMov.update(otherRToMov)
+        # Get the list of regs that need to be moved to another reg
+        if i > 0:
+            for v in bf.varToRegPerLine[i]:
+                if v in bf.varToRegPerLine[i-1]:
+                    currReg = bf.varToRegPerLine[i][v]
+                    prevReg = bf.varToRegPerLine[i-1][v]
+                    if prevReg != currReg:
+                        rToMov[formatRegName(prevReg)] = formatRegName(currReg)
+        
+        ordering, cycle = toposort(rToMov)
+        newOrdering = []
+        if cycle is not None:
+            tempReg = getUnusedReg(bf.regToVarPerLine[i])
+            tempReg = formatRegName(tempReg)
+            v1 = list(cycle.keys())[0]
+            newOrdering.append((v1, tempReg))
+            v = cycle[v1]
+            movOrder = []
+            while True:
+                if v == v1: break
+                movOrder.append(v)
+                v = cycle[v]
+            movOrder.reverse()
+            for v in movOrder:
+                newOrdering.append((v, cycle[v]))
+            newOrdering.append((tempReg, cycle[v1]))
+        else:
+            ordering.reverse()
+            for v in ordering:
+                if v not in rToMov: continue
+                newOrdering.append((v, rToMov[v]))
+
+        for t in newOrdering:
+            movLine = ArmInstLine(ARM_MOV)
+            movLine.addArg(t[1])
+            movLine.addArg(t[0])
+            lines.append(movLine)
+        return lines
+
+    def genLdrRegArm(self, bf:'BlockInfo', i:'int') -> 'list[ArmLine]':
+        """
+        Ldr regs from mem if they are currently used and not previously defined
+        """
+        lines = []
+        # Get the list of regs that need to be moved to another reg
+        if i == 0:
+            return lines
+
+        for v in bf.varToRegPerLine[i]:
+            if v not in bf.varToRegPerLine[i-1] and v in bf.varToMemPerLine[i]:
+                mem = bf.varToMemPerLine[i][v]  # "_m..."
+                negOffsetFromFp = str(-int(mem[2:]) * 4)
+                currReg = bf.varToRegPerLine[i][v]
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(formatRegName(currReg))
+                ldrLine.addArg(f'[fp,{formatIntLiteral(negOffsetFromFp)}]')
+                lines.append(ldrLine)
+        return lines
+
     def genLabelStmtArm(self, stmt:'LabelStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
         lines = []
         labelName = f'.L{stmt.labelNum}'
@@ -337,7 +423,7 @@ class ArmGenerator:
         # if ( _e1 ) { ... }
         if len(stmt.relExp.items) == 1:
             v = stmt.relExp.items[0]
-            reg = bf.varToRegPerLine[i][v]
+            reg = formatRegName(bf.varToRegPerLine[i][v])
             cmpLine = ArmInstLine(ARM_CMP)
             cmpLine.addArg(reg)
             cmpLine.addArg(ARM_ZERO) # Check if it is larger than False
@@ -353,24 +439,24 @@ class ArmGenerator:
             arg1 = stmt.relExp.items[2]
             op = stmt.relExp.items[1]
             if isIntLiteral(arg0):
-                reg0 = getUnusedReg(bf.regToVarPerLine[i])
+                reg0 = formatRegName(getUnusedReg(bf.regToVarPerLine[i]))
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(reg0)
                 movLine.addArg(formatIntLiteral(arg0))
                 lines.append(movLine)
             else: # isVar
-                reg0 = bf.varToRegPerLine[i][arg0]
+                reg0 = formatRegName(bf.varToRegPerLine[i][arg0])
 
             if isIntLiteral(arg1):
                 reg1 = formatIntLiteral(arg1)
             else: # isVar
-                reg1 = bf.varToRegPerLine[i][arg1]
+                reg1 = formatRegName(bf.varToRegPerLine[i][arg1])
             cmpLine = ArmInstLine(ARM_CMP)
             cmpLine.addArg(reg0)
             cmpLine.addArg(reg1)
             lines.append(cmpLine)
 
-            branchLine = ArmInstLine(resolveRelOpToArmInst(op))
+            branchLine = ArmInstLine(relOpToArm(op))
             branchLine.addArg(labelName)
             lines.append(branchLine)
         return lines
@@ -397,7 +483,7 @@ class ArmGenerator:
 
         # bl scanf
         blLine = ArmInstLine(ARM_BL)
-        blLine.addArg("scanf")
+        blLine.addArg(ARM_SCANF)
         lines.append(blLine)
 
         # ldr a2, =LC0 + write_space_offset
@@ -409,6 +495,7 @@ class ArmGenerator:
         ldrLine3.addArg(formatDerefReg("a2"))
         lines.append(ldrLine3)
 
+        lines += self.loadARegs([3,4], bf, i)
         return lines
 
     def genPrintStmtArm(self, stmt:'PrintStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
@@ -417,7 +504,7 @@ class ArmGenerator:
         # ldr a1, =LC0 + int_fomatter_offset
         ldrLine1 = ArmInstLine(ARM_LDR)
         ldrLine1.addArg("a1")
-        formatter = bf.regToVarPerLine[i]["_a1"]  # "%s\n"
+        formatter = bf.regToVarPerLine[i]["_a1"]  # e.g. "%s\n"
         offset1 = self.dataMap[formatter]
         dataLoc1 = f'={DATA_LABEL} + {offset1}'
         ldrLine1.addArg(dataLoc1)
@@ -442,23 +529,307 @@ class ArmGenerator:
 
         # bl printf
         blLine = ArmInstLine(ARM_BL)
-        blLine.addArg("printf")
+        blLine.addArg(ARM_PRINTF)
         lines.append(blLine)
+
+        lines += self.loadARegs([2,3,4], bf, i)
         return lines
 
     def genAssignIdStmtArm(self, stmt:'AssignIdStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
         lines = []
 
+        v = stmt.id
+        reg = formatRegName(bf.varToRegPerLine[i][v])
+        if isinstance(stmt.exp, CallExp):
+            lines += self.genCallExpArm(stmt.exp, bf, i)
+            movLine = ArmInstLine(ARM_MOV)
+            movLine.addArg(reg)
+            movLine.addArg("a1")
+            lines.append(movLine)
+
+        elif len(stmt.exp.items) == 3:
+            # _e1 = new Object ()
+            if "new" in stmt.exp.items:
+                # mov a1, #4 @ malloc size
+                movLine1 = ArmInstLine(ARM_MOV)
+                movLine1.addArg("a1")
+                size = bf.regToVarPerLine[i]["_a1"]  # e.g. "8"
+                movLine1.addArg(formatIntLiteral(size))
+                lines.append(movLine1)
+
+                # bl malloc
+                blLine = ArmInstLine(ARM_BL)
+                blLine.addArg(ARM_MALLOC)
+                lines.append(blLine)
+
+                # mov v1, a1
+                movLine2 = ArmInstLine(ARM_MOV)
+                movLine2.addArg(reg)
+                movLine2.addArg("a1")
+                lines.append(movLine2)
+
+            # _e1 = _e2 . val
+            elif "." in stmt.exp.items:
+                objV = stmt.exp.items[0]
+                objType = self.symbolTable.getVarTypeFromMethod(self.currMethodId, objV)
+                fieldId = stmt.exp.items[2]
+                fieldOffset = str(self.symbolTable.getFieldOffsetForClass(objType, fieldId))
+                objReg = formatRegName(bf.varToRegPerLine[i][objV])
+
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(reg)
+                ldrLine.addArg(f'[{objReg}, {formatIntLiteral(fieldOffset)}]')
+                lines.append(ldrLine)
+
+            elif isArithOp(stmt.exp.items[1]):
+                arg1 = stmt.exp.items[0]
+                arg2 = stmt.exp.items[2]
+                op = stmt.exp.items[1]
+
+                if isIntLiteral(arg1):
+                    reg1 = formatRegName(getUnusedReg(bf.regToVarPerLine[i]))
+                    movLine1 = ArmInstLine(ARM_MOV)
+                    movLine1.addArg(reg1)
+                    movLine1.addArg(formatIntLiteral(arg1))
+                    lines.append(movLine1)
+                else:
+                    reg1 = formatRegName(bf.varToRegPerLine[i][arg1])
+                
+                if isIntLiteral(arg2):
+                    usedRegs = set([k for k in bf.regToVarPerLine[i]]).union(set([f'_{reg1}']))
+                    reg2 = formatRegName(getUnusedReg(usedRegs))
+                    movLine2 = ArmInstLine(ARM_MOV)
+                    movLine2.addArg(reg2)
+                    movLine2.addArg(formatIntLiteral(arg2))
+                    lines.append(movLine2)
+                else:
+                    reg2 = formatRegName(bf.varToRegPerLine[i][arg2])
+
+                opLine = ArmInstLine(arithOpToArm(op))
+                opLine.addArg(reg)
+                if reg == reg1:
+                    opLine.addArg(reg2)
+                elif reg == reg2:
+                    opLine.addArg(reg1)
+                else:
+                    opLine.addArg(reg1)
+                    opLine.addArg(reg2)
+                lines.append(opLine)
+
+            else: # nothing else possible
+                print("Error unpacking assignment stmt")
+                exit(1)
+
+        # _e1 = - 4 (assign to negative int) / _e1 = - _e1
+        elif len(stmt.exp.items) == 2:
+            item = stmt.exp.items[1]
+            # _e1 = -_e2
+            if isVar(item):
+                itemReg = formatRegName(bf.varToRegPerLine[i][item]) # _e2
+                negLine = ArmInstLine(ARM_NEG)
+                negLine.addArg(reg)
+                negLine.addArg(itemReg)
+                lines.append(negLine)
+
+            # _e1 = -4
+            elif isIntLiteral(item):
+                # mov v1, #-4
+                intLiteral = "".join(stmt.exp.items)
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(reg)
+                movLine.addArg(formatIntLiteral(intLiteral))
+                lines.append(movLine)
+
+        elif len(stmt.exp.items) == 1:
+            item = stmt.exp.items[0]
+            if isVar(item):
+                itemReg = objReg = formatRegName(bf.varToRegPerLine[i][item])
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(reg)
+                movLine.addArg(itemReg)
+                lines.append(movLine)
+            elif isIntLiteral(item):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(reg)
+                movLine.addArg(formatIntLiteral(item))
+                lines.append(movLine)
+            elif isBoolLiteral(item):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(reg)
+                movLine.addArg(formatBoolLiteral(item))
+                lines.append(movLine)
+            elif isStringLiteral(item):
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(reg)
+                offset = self.dataMap[item]
+                dataLoc = f'={DATA_LABEL} + {offset}'
+                ldrLine.addArg(dataLoc)
+                lines.append(ldrLine)
+
+        if hasCall(stmt):
+            aRegs = []
+            for j in range(1,5):
+                aReg = f'_a{j}'
+                if aReg in bf.regToVarPerLine[i] and \
+                    bf.regToVarPerLine[i][aReg] in bf.defPerLine[i]:
+                    continue
+                aRegs.append(j)
+            lines += self.loadARegs(aRegs, bf, i)
         return lines
 
     def genAssignFieldStmtArm(self, stmt:'AssignFieldStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
         lines = []
+        v = stmt.classId
+        classType = self.symbolTable.getVarTypeFromMethod(self.currMethodId, v)
+        fieldId = stmt.fieldId
+        classFieldOffset = str(self.symbolTable.getFieldOffsetForClass(classType, fieldId))
 
+        reg = formatRegName(bf.varToRegPerLine[i][v])
+        tempReg = formatRegName(getUnusedReg(bf.regToVarPerLine[i]))
+        if isinstance(stmt.exp, CallExp):
+            lines += self.genCallExpArm(stmt.exp, bf, i)
+            tempReg = "a1"
+
+        elif len(stmt.exp.items) == 3:
+            # _e1 = new Object ()
+            if "new" in stmt.exp.items:
+                # mov a1, #4 @ malloc size
+                movLine1 = ArmInstLine(ARM_MOV)
+                movLine1.addArg("a1")
+                size = bf.regToVarPerLine[i]["_a1"]  # e.g. "8"
+                movLine1.addArg(formatIntLiteral(size))
+                lines.append(movLine1)
+
+                # bl malloc
+                blLine = ArmInstLine(ARM_BL)
+                blLine.addArg(ARM_MALLOC)
+                lines.append(blLine)
+
+                # mov v1, a1
+                movLine2 = ArmInstLine(ARM_MOV)
+                movLine2.addArg(tempReg)
+                movLine2.addArg("a1")
+                lines.append(movLine2)
+
+            # _e1 = _e2 . val
+            elif "." in stmt.exp.items:
+                objV = stmt.exp.items[0]
+                objType = self.symbolTable.getVarTypeFromMethod(self.currMethodId, objV)
+                fieldId = stmt.exp.items[2]
+                fieldOffset = str(self.symbolTable.getFieldOffsetForClass(objType, fieldId))
+                objReg = formatRegName(bf.varToRegPerLine[i][objV])
+
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(tempReg)
+                ldrLine.addArg(f'[{objReg}, {formatIntLiteral(fieldOffset)}]')
+                lines.append(ldrLine)
+
+            elif isArithOp(stmt.exp.items[1]):
+                arg1 = stmt.exp.items[0]
+                arg2 = stmt.exp.items[2]
+                op = stmt.exp.items[1]
+
+                if isIntLiteral(arg1):
+                    usedRegs = set([k for k in bf.regToVarPerLine[i]]).union(set([f'_{tempReg}']))
+                    reg1 = formatRegName(getUnusedReg(usedRegs))
+                    movLine1 = ArmInstLine(ARM_MOV)
+                    movLine1.addArg(reg1)
+                    movLine1.addArg(formatIntLiteral(arg1))
+                    lines.append(movLine1)
+                else:
+                    reg1 = formatRegName(bf.varToRegPerLine[i][arg1])
+                
+                if isIntLiteral(arg2):
+                    usedRegs = set([k for k in bf.regToVarPerLine[i]]).union(set([f'_{reg1}', f'_{tempReg}']))
+                    reg2 = formatRegName(getUnusedReg(usedRegs))
+                    movLine2 = ArmInstLine(ARM_MOV)
+                    movLine2.addArg(reg2)
+                    movLine2.addArg(formatIntLiteral(arg2))
+                    lines.append(movLine2)
+                else:
+                    reg2 = formatRegName(bf.varToRegPerLine[i][arg2])
+
+                opLine = ArmInstLine(arithOpToArm(op))
+                opLine.addArg(tempReg)
+                if tempReg == reg1:
+                    opLine.addArg(reg2)
+                elif tempReg == reg2:
+                    opLine.addArg(reg1)
+                else:
+                    opLine.addArg(reg1)
+                    opLine.addArg(reg2)
+                lines.append(opLine)
+
+            else: # nothing else possible
+                print("Error unpacking assignment stmt")
+                exit(1)
+                pass
+
+        # _e1 = - 4 (assign to negative int) / _e1 = - _e1
+        elif len(stmt.exp.items) == 2:
+            item = stmt.exp.items[1]
+            # _e1 = -_e2
+            if isVar(item):
+                itemReg = formatRegName(bf.varToRegPerLine[i][item]) # _e2
+                negLine = ArmInstLine(ARM_NEG)
+                negLine.addArg(tempReg)
+                negLine.addArg(itemReg)
+                lines.append(negLine)
+
+            # _e1 = -4
+            elif isIntLiteral(item):
+                # mov v1, #-4
+                intLiteral = "".join(stmt.exp.items)
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(formatIntLiteral(intLiteral))
+                lines.append(movLine)
+
+        elif len(stmt.exp.items) == 1:
+            item = stmt.exp.items[0]
+            if isVar(item):
+                itemReg = objReg = formatRegName(bf.varToRegPerLine[i][item])
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(itemReg)
+                lines.append(movLine)
+            elif isIntLiteral(item):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(formatIntLiteral(item))
+                lines.append(movLine)
+            elif isBoolLiteral(item):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(formatBoolLiteral(item))
+                lines.append(movLine)
+            elif isStringLiteral(item):
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(tempReg)
+                offset = self.dataMap[item]
+                dataLoc = f'={DATA_LABEL} + {offset}'
+                ldrLine.addArg(dataLoc)
+                lines.append(ldrLine)
+
+        strLine = ArmInstLine(ARM_STR)
+        strLine.addArg(tempReg)
+        strLine.addArg(f'[{reg}, {formatIntLiteral(classFieldOffset)}]')
+        lines.append(strLine)
+
+        if hasCall(stmt):
+            aRegs = []
+            for j in range(1,5):
+                aReg = f'_a{j}'
+                if aReg in bf.regToVarPerLine[i] and \
+                    bf.regToVarPerLine[i][aReg] in bf.defPerLine[i]:
+                    continue
+                aRegs.append(j)
         return lines
 
     def genCallStmtArm(self, stmt:'CallStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
         lines = []
-
+        lines += self.genCallExpArm(stmt.exp, bf, i)
+        lines += self.loadARegs([1,2,3,4], bf, i)
         return lines
 
     def genReturnStmtArm(self, stmt:'ReturnStmt', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
@@ -469,7 +840,7 @@ class ArmGenerator:
             reg = bf.varToRegPerLine[i][returnExp]
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg("a1")
-            movLine.addArg(reg)
+            movLine.addArg(formatRegName(reg))
             lines.append(movLine)
 
         elif isStringLiteral(stmt.id):
@@ -496,18 +867,166 @@ class ArmGenerator:
             pass
         
         # IR3 optimization already ensures no other statements following return stmt until next block
-        # branchToExit = ArmInstLine(ARM_UNCOND_BRANCH)
-        # branchToExit.addArg(formatExitLabel(self.currMethodId))
-        # lines.append(branchToExit)
+        branchToExit = ArmInstLine(ARM_B)
+        branchToExit.addArg(formatExitLabel(self.currMethodId))
+        lines.append(branchToExit)
         return lines
 
-    def genExpArm(self, exp:'Exp', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
-        if isinstance(exp, CallExp):
-            return self.genCallExpArm(exp, bf, i)
+    def genCallExpArm(self, exp:'CallExp', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
+        lines = []
+        # mov registers
+        j = 0
+        while j < len(exp.args) and j+1 <= 4:
+            reg = f'_a{j+1}'
+            arg = bf.regToVarPerLine[i][reg]
+        
+            if isStringLiteral(arg):
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(formatRegName(reg))
+                offset = self.dataMap[arg]
+                dataLoc = f'={DATA_LABEL} + {offset}'
+                ldrLine.addArg(dataLoc)
+                lines.append(ldrLine)
 
-    def genRelExpArm(self, exp:'RelExp', bf:'BlockInfo', i:int) -> 'list[ArmLine]':
-        pass
+            elif isIntLiteral(arg):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(formatRegName(reg))
+                movLine.addArg(formatIntLiteral(arg))
+                lines.append(movLine)
 
+            elif isBoolLiteral(arg):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(formatRegName(reg))
+                movLine.addArg(formatBoolLiteral(arg))
+                lines.append(movLine)
+
+            j += 1
+
+        j = 0
+        # place things on the stack and 
+        while j < len(bf.stkToVarPerLine[i]):
+            stkPos = reg = f'_k{j}'
+            arg = bf.stkToVarPerLine[i][stkPos]
+            tempReg = formatRegName(getUnusedReg(bf.regToVarPerLine[i]))
+
+            if isVar(arg):
+                if arg in bf.varToRegPerLine[i]: # have been initialized previously
+                    vReg = bf.varToRegPerLine[i][arg]
+                    movLine = ArmInstLine(ARM_MOV)
+                    movLine.addArg(tempReg)
+                    movLine.addArg(formatRegName(vReg))
+                    lines.append(movLine)
+
+                elif arg in bf.varToMemPerLine[i]:
+                    mem = bf.varToMemPerLine[i][arg]  # "_m..."
+                    negOffsetFromFp = str(-int(mem[2:]) * 4)
+                    ldrLine = ArmInstLine(ARM_LDR)
+                    ldrLine.addArg(formatRegName(tempReg))
+                    ldrLine.addArg(f'[fp,{formatIntLiteral(negOffsetFromFp)}]')
+                    lines.append(ldrLine)
+
+                else:
+                    argType = self.symbolTable.getVarTypeFromMethod(self.currMethodId, arg)
+                    if argType == STR_TYPE:
+                        ldrLine = ArmInstLine(ARM_LDR)
+                        ldrLine.addArg(tempReg)
+                        offset = self.dataMap[NULL_STRING]
+                        dataLoc = f'={DATA_LABEL} + {offset}'
+                        ldrLine.addArg(dataLoc)
+                        lines.append(ldrLine)
+                    else:
+                        movLine = ArmInstLine(ARM_MOV)
+                        movLine.addArg(tempReg)
+                        movLine.addArg(ARM_ZERO)
+                        lines.append(movLine)
+
+            elif isStringLiteral(arg):
+                ldrLine = ArmInstLine(ARM_LDR)
+                ldrLine.addArg(tempReg)
+                offset = self.dataMap[arg]
+                dataLoc = f'={DATA_LABEL} + {offset}'
+                ldrLine.addArg(dataLoc)
+                lines.append(ldrLine)
+
+            elif isIntLiteral(arg):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(formatIntLiteral(arg))
+                lines.append(movLine)
+
+            elif isBoolLiteral(arg):
+                movLine = ArmInstLine(ARM_MOV)
+                movLine.addArg(tempReg)
+                movLine.addArg(formatBoolLiteral(arg))
+                lines.append(movLine)
+
+            strLine = ArmInstLine(ARM_STR)
+            strLine.addArg(tempReg)
+            strLine.addArg(f'[sp, {formatIntLiteral(str((j+INITITAL_STK_SPACE+1)*-4))}]')  # e.g. [sp, #-4] [sp, #-8] [sp, #-12].. 
+            lines.append(strLine)
+
+            j+=1
+
+        # adjust sp pointer: sub sp #12
+        methodId = exp.methodId
+        methodInfo = self.symbolTable.getMethodInfo(methodId)
+        methodStkOffset = (methodInfo.memCnt) * 4
+        subSPLine = ArmInstLine(ARM_SUB)
+        subSPLine.addArg("sp")
+        subSPLine.addArg(formatIntLiteral(str(methodStkOffset)))
+        lines.append(subSPLine)
+
+        # bl method Call
+        blLine = ArmInstLine(ARM_BL)
+        blLine.addArg(methodId)
+        lines.append(blLine)
+
+        # adjust sp pointer back 
+        addSPLine = ArmInstLine(ARM_ADD)
+        addSPLine.addArg("sp")
+        addSPLine.addArg(formatIntLiteral(str(methodStkOffset)))
+        lines.append(addSPLine)
+        return lines
+
+    def storeARegs(self, aRegs:'list[int]', bf:'BlockInfo', i:int):
+        """
+        Before a function call is made, all a registers are stored to mem
+        """
+        lines = []
+        # return lines
+        for j in aRegs:
+            reg = f'_a{j}'
+            # if reg not in bf.regToVarPerLine[i]:
+            #     continue
+            # v = bf.regToVarPerLine[i][reg]
+            
+            # if isVar(v):
+            offset = (j-1) * -4 # #0, #-4, #-8, #-12
+            strLine = ArmInstLine(ARM_STR)
+            strLine.addArg(formatRegName(reg))
+            strLine.addArg(f'[fp,{formatIntLiteral(str(offset))}]')
+            lines.append(strLine)
+        return lines
+
+    def loadARegs(self, aRegs:'list[int]', bf:'BlockInfo', i:int):
+        """
+        After a function call is made, all a registers are restored from mem
+        """
+        lines = []
+        # return lines
+        for j in aRegs:
+            reg = f'_a{j}'
+            # if reg not in bf.regToVarPerLine[i]:
+            #     continue
+            # v = bf.regToVarPerLine[i][reg]
+            
+            # if isVar(v):
+            offset = (j-1) * -4 # #0, #-4, #-8, #-12
+            ldrLine = ArmInstLine(ARM_LDR)
+            ldrLine.addArg(formatRegName(reg))
+            ldrLine.addArg(f'[fp,{formatIntLiteral(str(offset))}]')
+            lines.append(ldrLine)
+        return lines
 
 
 def isAsciiString(literal:str):
@@ -550,5 +1069,44 @@ def formatExitLabel(methodId:str) -> str:
 def formatDerefReg(reg:str) -> str:
     return f'[{reg}]'
 
-def resolveRelOpToArmInst(op:str) -> str:
+def relOpToArm(op:str) -> str:
     return ARM_RELOP_MAPPER[op]
+
+def arithOpToArm(op:str) -> str:
+    return ARM_ARITHOP_MAPPER[op]
+
+def toposort(g:'dict[str,str]') -> 'tuple[list[str],dict[str,str]]':
+    indeg = {}
+    for k in g:
+        indeg[k] = 0
+        indeg[g[k]] = 0
+
+    for k in g:
+        v = g[k]
+        indeg[v] += 1
+
+    stk = []
+    ordering = []
+    for v in indeg:
+        if indeg[v] == 0:
+            stk.append(v)
+
+    while stk:
+        v = stk.pop()
+        ordering.append(v)
+        if v not in g: continue
+        n = g[v]
+        indeg[n] -= 1
+        if indeg[n] == 0:
+            stk.append(n)
+
+    if len(ordering) < len(indeg):
+        # cycle exists
+        cycle = set([k for k in indeg]) - set(ordering)
+        cycleEdges = {}
+        for k in cycle:
+            cycleEdges[k] = g[k]
+        return ordering, cycleEdges
+
+    return ordering, None
+    

@@ -823,12 +823,12 @@ class Generator:
 
             e1Stmts, e1Addr = self.genStmtsFromExp(e.firstExp, expAttr)
             e2Stmts, e2Addr = self.genStmtsFromExp(e.secondExp, expAttr)
-            if re.match(r"[0-9]+", e1Addr) is not None or re.match(r"\".*\"", e1Addr) is not None:
-                e0 = self.nextTempId()
-                stmt = AssignTypeIdStmt(e.type, e0, Exp(str(e1Addr), op, e2Addr))
-                e1Addr = e0
-            else:
-                stmt = AssignIdStmt(e1Addr, Exp(e1Addr, op, e2Addr))
+            # if re.match(r"[0-9]+", e1Addr) is not None or re.match(r"\".*\"", e1Addr) is not None:
+            e0 = self.nextTempId()
+            stmt = AssignTypeIdStmt(e.type, e0, Exp(str(e1Addr), op, e2Addr))
+            e1Addr = e0
+            # else:
+            #     stmt = AssignIdStmt(e1Addr, Exp(e1Addr, op, e2Addr))
             stmtList += e1Stmts
             stmtList += e2Stmts
             stmtList += [stmt]
@@ -838,12 +838,12 @@ class Generator:
             e1Stmts, e1Addr = self.genStmtsFromExp(e.exp, expAttr)
             stmtList += e1Stmts
             if e.isNegated:
-                if re.match(r"[0-9]+", e1Addr) is not None:
-                    e0 = self.nextTempId()
-                    stmt = AssignTypeIdStmt(e.type, e0, Exp("-", str(e1Addr)))
-                    e1Addr = e0
-                else:
-                    stmt = AssignIdStmt(e1Addr, Exp("-", e1Addr))
+                # if re.match(r"[0-9]+", e1Addr) is not None:
+                e0 = self.nextTempId()
+                stmt = AssignTypeIdStmt(e.type, e0, Exp("-", str(e1Addr)))
+                e1Addr = e0
+                # else:
+                #     stmt = AssignIdStmt(e1Addr, Exp("-", e1Addr))
                 stmtList += [stmt]
             return stmtList, e1Addr
 

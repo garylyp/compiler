@@ -22,6 +22,8 @@ main:
     ldr a1,=L1 + 29
     ldr a2,=L1 + 36
     ldr a2, [a2]
+    mov v1, #-5
+    add a2, #300
     bl printf
 
 

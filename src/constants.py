@@ -11,6 +11,9 @@ WRITE_SPACE = "\"" + "\\0" * 8 + "\""
 ARM_STMFD = "stmfd"
 ARM_LDMFD = "ldmfd"
 ARM_LDR = "ldr"
+ARM_STR = "str"
+ARM_MOV = "mov"
+ARM_NEG = "neg"
 
 ARM_CMP = "cmp"
 ARM_B = "b"
@@ -31,7 +34,22 @@ ARM_RELOP_MAPPER = {
     "<=" : ARM_BLE
 }
 
+ARM_ADD = "add"
+ARM_SUB = "sub"
+ARM_MUL = "mul"
+
+ARM_ARITHOP_MAPPER = {
+    "+" : ARM_ADD,
+    "-" : ARM_SUB,
+    "*"  : ARM_MUL,
+    # "/" : ARM_DIV,
+}
+
 ARM_ZERO = "#0"
 ARM_ONE = "#1"
 
-ARM_MOV = "mov"
+ARM_PRINTF = "printf"
+ARM_SCANF = "scanf"
+ARM_MALLOC = "malloc"
+
+INITITAL_STK_SPACE = 4
