@@ -535,6 +535,15 @@ class RegAllocator:
 
                             elif self.varToReg[args[j]] == reqReg:
                                 pass
+                                
+                                # self.varToReg[args[j]] != reqReg:
+                                # but there is a chance that the earlier arguments are the same
+                            elif self.varToReg[args[j]] != reqReg and \
+                                "a" in self.varToReg[args[j]] and \
+                                self.varToReg[args[j]] < reqReg: 
+
+                                self.varToReg[args[j]] = reqReg
+                                self.regToVar[reqReg] = args[j]
 
                             else: # self.varToReg[args[j]] != reqReg:
                                 regToFree = self.varToReg.pop(args[j])
@@ -650,7 +659,7 @@ class RegAllocator:
         # Free registers for variables that are not used by scanning vars
         dropSet = []
         for v in self.varToReg:
-            if v not in b.blockInfo.livePerLine[i] and v not in b.blockInfo.usePerLine[i]:
+            if v not in b.blockInfo.livePerLine[i] and v not in b.blockInfo.usePerLine[i] and v not in b.inVars and v not in b.outVars:
                 dropSet.append(v)
         for v in dropSet:
             reg = self.varToReg.pop(v, None) 
@@ -662,12 +671,24 @@ class RegAllocator:
         dropSet = []
         for reg in self.regToVar:
             v = self.regToVar[reg]
-            if v not in b.blockInfo.livePerLine[i] and v not in b.blockInfo.usePerLine[i]:
+            if v not in b.blockInfo.livePerLine[i] and v not in b.blockInfo.usePerLine[i] and v not in b.inVars and v not in b.outVars:
                 dropSet.append(reg)
         for reg in dropSet:
             v = self.regToVar.pop(reg, None) 
             self.regPool.append(reg)
             self.varToReg.pop(v, None) 
+
+        # If multiple reg maps to same var, keep the one which the reg maps to
+        dropSet = []
+        for v in self.varToReg:
+            keepReg = self.varToReg[v]
+            for reg in self.regToVar:
+                if self.regToVar[reg] == v and reg != keepReg:
+                    dropSet.append(reg)
+        for reg in dropSet:
+            v = self.regToVar.pop(reg, None) 
+            self.regPool.append(reg)
+
 
 def genBlockInfo(block:'Block'):
     """
@@ -811,4 +832,8 @@ def getUnusedReg(usedReg, mustBeV = False) -> 'str':
         allRegs = set(["_v5", "_v4", "_v3", "_v2", "_v1", "_a4", "_a3", "_a2", "_a1"])
     unusedRegs = allRegs - usedRegs
     return unusedRegs.pop()
-    
+
+
+def isVarLocal(cMtd:'CMtd', v:str) -> bool:
+    actuals = [a.id for a in cMtd.mdBody.varDecl]
+    return v in actuals

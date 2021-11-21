@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from os import pipe
 from ir3 import Program, CMtd, CData
 from reg import *
 from constants import *
@@ -292,6 +291,7 @@ class ArmGenerator:
         stmt = b.stmts[i]
         bf = b.blockInfo
         toMov = {}
+        # Move argument variables from a registers to other registers if necessary
         if b.name == "B0" and i == 0:
             currArgs = [f.id for f in self.symbolTable.getMethodInfo(self.currMethodId).cMtd.formals]
             for j in range(min(len(currArgs),4)):
@@ -379,6 +379,7 @@ class ArmGenerator:
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg(t[1])
             movLine.addArg(t[0])
+            movLine.setComment(f'mov value from {t[0]} to {t[1]}')
             lines.append(movLine)
         return lines
 
@@ -399,6 +400,7 @@ class ArmGenerator:
                 ldrLine = ArmInstLine(ARM_LDR)
                 ldrLine.addArg(formatRegName(currReg))
                 ldrLine.addArg(f'[fp,{formatIntLiteral(negOffsetFromFp)}]')
+                ldrLine.setComment(f'ld value from {mem} to {currReg}')
                 lines.append(ldrLine)
         return lines
 
@@ -427,6 +429,7 @@ class ArmGenerator:
             cmpLine = ArmInstLine(ARM_CMP)
             cmpLine.addArg(reg)
             cmpLine.addArg(ARM_ZERO) # Check if it is larger than False
+            cmpLine.setComment(f'if ( {v} ) goto {labelName}')
             lines.append(cmpLine)
 
             bgtLine = ArmInstLine(ARM_BGT)
@@ -454,6 +457,7 @@ class ArmGenerator:
             cmpLine = ArmInstLine(ARM_CMP)
             cmpLine.addArg(reg0)
             cmpLine.addArg(reg1)
+            cmpLine.setComment(f'if ( {arg0} {op} {arg1} ) goto {labelName}')
             lines.append(cmpLine)
 
             branchLine = ArmInstLine(relOpToArm(op))
@@ -471,6 +475,7 @@ class ArmGenerator:
         offset1 = self.dataMap[formatter]
         dataLoc1 = f'={DATA_LABEL} + {offset1}'
         ldrLine1.addArg(dataLoc1)
+        ldrLine1.setComment(f'[readln] %d format specifier')
         lines.append(ldrLine1)
 
         # ldr a2, =LC0 + write_space_offset
@@ -479,6 +484,7 @@ class ArmGenerator:
         offset2 = self.dataMap[WRITE_SPACE]
         dataLoc2 = f'={DATA_LABEL} + {offset2}'
         ldrLine2.addArg(dataLoc2)
+        ldrLine2.setComment(f'[readln] write address')
         lines.append(ldrLine2)
 
         # bl scanf
@@ -493,6 +499,7 @@ class ArmGenerator:
         ldrLine3 = ArmInstLine(ARM_LDR)
         ldrLine3.addArg("a2")
         ldrLine3.addArg(formatDerefReg("a2"))
+        ldrLine3.setComment(f'[readln] save scanned integer')
         lines.append(ldrLine3)
 
         lines += self.loadARegs([3,4], bf, i)
@@ -508,6 +515,7 @@ class ArmGenerator:
         offset1 = self.dataMap[formatter]
         dataLoc1 = f'={DATA_LABEL} + {offset1}'
         ldrLine1.addArg(dataLoc1)
+        ldrLine1.setComment(f'[println] {formatter} format specifier')
         lines.append(ldrLine1)
 
         if isVar(arg):
@@ -545,6 +553,7 @@ class ArmGenerator:
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg(reg)
             movLine.addArg("a1")
+            movLine.setComment(f'[VarAssign] {v} = {stmt.exp.pprint()}')
             lines.append(movLine)
 
         elif len(stmt.exp.items) == 3:
@@ -566,6 +575,7 @@ class ArmGenerator:
                 movLine2 = ArmInstLine(ARM_MOV)
                 movLine2.addArg(reg)
                 movLine2.addArg("a1")
+                movLine2.setComment(f'[VarAssign] {v} = new {stmt.exp.items[1]} ()')
                 lines.append(movLine2)
 
             # _e1 = _e2 . val
@@ -579,6 +589,7 @@ class ArmGenerator:
                 ldrLine = ArmInstLine(ARM_LDR)
                 ldrLine.addArg(reg)
                 ldrLine.addArg(f'[{objReg}, {formatIntLiteral(fieldOffset)}]')
+                ldrLine.setComment(f'[VarAssign] {v} = {objV}.{fieldId}')
                 lines.append(ldrLine)
 
             elif isArithOp(stmt.exp.items[1]):
@@ -614,6 +625,7 @@ class ArmGenerator:
                 else:
                     opLine.addArg(reg1)
                     opLine.addArg(reg2)
+                opLine.setComment(f'[VarAssign] {v} = {arg1} {op} {arg2}')
                 lines.append(opLine)
 
             else: # nothing else possible
@@ -629,6 +641,7 @@ class ArmGenerator:
                 negLine = ArmInstLine(ARM_NEG)
                 negLine.addArg(reg)
                 negLine.addArg(itemReg)
+                negLine.setComment(f'[VarAssign] {v} = -{item}')
                 lines.append(negLine)
 
             # _e1 = -4
@@ -638,25 +651,29 @@ class ArmGenerator:
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(reg)
                 movLine.addArg(formatIntLiteral(intLiteral))
+                movLine.setComment(f'[VarAssign] {v} = -{item}')
                 lines.append(movLine)
 
         elif len(stmt.exp.items) == 1:
             item = stmt.exp.items[0]
             if isVar(item):
-                itemReg = objReg = formatRegName(bf.varToRegPerLine[i][item])
+                itemReg = formatRegName(bf.varToRegPerLine[i][item])
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(reg)
                 movLine.addArg(itemReg)
+                movLine.setComment(f'[VarAssign] {v} = {item}')
                 lines.append(movLine)
             elif isIntLiteral(item):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(reg)
                 movLine.addArg(formatIntLiteral(item))
+                movLine.setComment(f'[VarAssign] {v} = {item}')
                 lines.append(movLine)
             elif isBoolLiteral(item):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(reg)
                 movLine.addArg(formatBoolLiteral(item))
+                movLine.setComment(f'[VarAssign] {v} = {item}')
                 lines.append(movLine)
             elif isStringLiteral(item):
                 ldrLine = ArmInstLine(ARM_LDR)
@@ -664,6 +681,7 @@ class ArmGenerator:
                 offset = self.dataMap[item]
                 dataLoc = f'={DATA_LABEL} + {offset}'
                 ldrLine.addArg(dataLoc)
+                ldrLine.setComment(f'[VarAssign] {v} = {item}')
                 lines.append(ldrLine)
 
         if hasCall(stmt):
@@ -709,6 +727,7 @@ class ArmGenerator:
                 movLine2 = ArmInstLine(ARM_MOV)
                 movLine2.addArg(tempReg)
                 movLine2.addArg("a1")
+                movLine2.setComment(f'[FieldAssign] {tempReg} = new {stmt.exp.items[1]} ()')
                 lines.append(movLine2)
 
             # _e1 = _e2 . val
@@ -722,6 +741,7 @@ class ArmGenerator:
                 ldrLine = ArmInstLine(ARM_LDR)
                 ldrLine.addArg(tempReg)
                 ldrLine.addArg(f'[{objReg}, {formatIntLiteral(fieldOffset)}]')
+                ldrLine.setComment(f'[FieldAssign] {tempReg} = {objV}.{fieldId}')
                 lines.append(ldrLine)
 
             elif isArithOp(stmt.exp.items[1]):
@@ -758,6 +778,7 @@ class ArmGenerator:
                 else:
                     opLine.addArg(reg1)
                     opLine.addArg(reg2)
+                opLine.setComment(f'[FieldAssign] {tempReg} = {arg1} {op} {arg2}')
                 lines.append(opLine)
 
             else: # nothing else possible
@@ -774,6 +795,7 @@ class ArmGenerator:
                 negLine = ArmInstLine(ARM_NEG)
                 negLine.addArg(tempReg)
                 negLine.addArg(itemReg)
+                negLine.setComment(f'[FieldAssign] {tempReg} = -{item}')
                 lines.append(negLine)
 
             # _e1 = -4
@@ -783,25 +805,29 @@ class ArmGenerator:
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(tempReg)
                 movLine.addArg(formatIntLiteral(intLiteral))
+                movLine.setComment(f'[FieldAssign] {tempReg} = -{item}')
                 lines.append(movLine)
 
         elif len(stmt.exp.items) == 1:
             item = stmt.exp.items[0]
             if isVar(item):
-                itemReg = objReg = formatRegName(bf.varToRegPerLine[i][item])
+                itemReg = formatRegName(bf.varToRegPerLine[i][item])
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(tempReg)
                 movLine.addArg(itemReg)
+                movLine.setComment(f'[FieldAssign] {tempReg} = {item}')
                 lines.append(movLine)
             elif isIntLiteral(item):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(tempReg)
                 movLine.addArg(formatIntLiteral(item))
+                movLine.setComment(f'[FieldAssign] {tempReg} = {item}')
                 lines.append(movLine)
             elif isBoolLiteral(item):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(tempReg)
                 movLine.addArg(formatBoolLiteral(item))
+                movLine.setComment(f'[FieldAssign] {tempReg} = {item}')
                 lines.append(movLine)
             elif isStringLiteral(item):
                 ldrLine = ArmInstLine(ARM_LDR)
@@ -809,11 +835,13 @@ class ArmGenerator:
                 offset = self.dataMap[item]
                 dataLoc = f'={DATA_LABEL} + {offset}'
                 ldrLine.addArg(dataLoc)
+                ldrLine.setComment(f'[FieldAssign] {tempReg} = {item}')
                 lines.append(ldrLine)
 
         strLine = ArmInstLine(ARM_STR)
         strLine.addArg(tempReg)
         strLine.addArg(f'[{reg}, {formatIntLiteral(classFieldOffset)}]')
+        strLine.setComment(f'[FieldAssign] {v}.{fieldId} = {tempReg} (temp reg)')
         lines.append(strLine)
 
         if hasCall(stmt):
@@ -836,31 +864,34 @@ class ArmGenerator:
         lines = []
         returnExp = stmt.id
         if isVar(returnExp):
-            # TODO: load from mem if not found in reg
             reg = bf.varToRegPerLine[i][returnExp]
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg("a1")
             movLine.addArg(formatRegName(reg))
+            movLine.setComment(f'return {returnExp}')
             lines.append(movLine)
 
-        elif isStringLiteral(stmt.id):
+        elif isStringLiteral(returnExp):
             ldrLine = ArmInstLine(ARM_LDR)
             ldrLine.addArg("a1")
-            offset = self.dataMap[stmt.id]
+            offset = self.dataMap[returnExp]
             dataLoc = f'={DATA_LABEL} + {offset}'
             ldrLine.addArg(dataLoc)
+            ldrLine.setComment(f'return {returnExp}')
             lines.append(ldrLine)
 
-        elif isIntLiteral(stmt.id):
+        elif isIntLiteral(returnExp):
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg("a1")
-            movLine.addArg(formatIntLiteral(stmt.id))
+            movLine.addArg(formatIntLiteral(returnExp))
+            movLine.setComment(f'return {returnExp}')
             lines.append(movLine)
 
-        elif isBoolLiteral(stmt.id):
+        elif isBoolLiteral(returnExp):
             movLine = ArmInstLine(ARM_MOV)
             movLine.addArg("a1")
-            movLine.addArg(formatBoolLiteral(stmt.id))
+            movLine.addArg(formatBoolLiteral(returnExp))
+            movLine.setComment(f'return {returnExp}')
             lines.append(movLine)
 
         else: # empty return
@@ -886,24 +917,26 @@ class ArmGenerator:
                 offset = self.dataMap[arg]
                 dataLoc = f'={DATA_LABEL} + {offset}'
                 ldrLine.addArg(dataLoc)
+                ldrLine.setComment(f'[Call] {reg} = {arg}')
                 lines.append(ldrLine)
 
             elif isIntLiteral(arg):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(formatRegName(reg))
                 movLine.addArg(formatIntLiteral(arg))
+                movLine.setComment(f'[Call] {reg} = {arg}')
                 lines.append(movLine)
 
             elif isBoolLiteral(arg):
                 movLine = ArmInstLine(ARM_MOV)
                 movLine.addArg(formatRegName(reg))
                 movLine.addArg(formatBoolLiteral(arg))
+                movLine.setComment(f'[Call] {reg} = {arg}')
                 lines.append(movLine)
-
             j += 1
 
         j = 0
-        # place things on the stack and 
+        # place things on the stack and increment sp
         while j < len(bf.stkToVarPerLine[i]):
             stkPos = reg = f'_k{j}'
             arg = bf.stkToVarPerLine[i][stkPos]
@@ -926,6 +959,8 @@ class ArmGenerator:
                     lines.append(ldrLine)
 
                 else:
+                    # Var not found in reg or mem mapping
+                    # Assign it null value
                     argType = self.symbolTable.getVarTypeFromMethod(self.currMethodId, arg)
                     if argType == STR_TYPE:
                         ldrLine = ArmInstLine(ARM_LDR)
@@ -963,6 +998,7 @@ class ArmGenerator:
             strLine = ArmInstLine(ARM_STR)
             strLine.addArg(tempReg)
             strLine.addArg(f'[sp, {formatIntLiteral(str((j+INITITAL_STK_SPACE+1)*-4))}]')  # e.g. [sp, #-4] [sp, #-8] [sp, #-12].. 
+            strLine.setComment(f'[Call] Place additional args on stk')
             lines.append(strLine)
 
             j+=1
@@ -974,6 +1010,7 @@ class ArmGenerator:
         subSPLine = ArmInstLine(ARM_SUB)
         subSPLine.addArg("sp")
         subSPLine.addArg(formatIntLiteral(str(methodStkOffset)))
+        subSPLine.setComment(f'[Call] Shift sp to top of stack')
         lines.append(subSPLine)
 
         # bl method Call
@@ -985,6 +1022,7 @@ class ArmGenerator:
         addSPLine = ArmInstLine(ARM_ADD)
         addSPLine.addArg("sp")
         addSPLine.addArg(formatIntLiteral(str(methodStkOffset)))
+        addSPLine.setComment(f'[Call] Shift sp back to prev pos (top of frame)')
         lines.append(addSPLine)
         return lines
 
@@ -1005,6 +1043,7 @@ class ArmGenerator:
             strLine = ArmInstLine(ARM_STR)
             strLine.addArg(formatRegName(reg))
             strLine.addArg(f'[fp,{formatIntLiteral(str(offset))}]')
+            strLine.setComment(f'st {formatRegName(reg)} to stack before func call')
             lines.append(strLine)
         return lines
 
@@ -1025,6 +1064,7 @@ class ArmGenerator:
             ldrLine = ArmInstLine(ARM_LDR)
             ldrLine.addArg(formatRegName(reg))
             ldrLine.addArg(f'[fp,{formatIntLiteral(str(offset))}]')
+            ldrLine.setComment(f'ld {formatRegName(reg)} original val from stack after func call')
             lines.append(ldrLine)
         return lines
 
