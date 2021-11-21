@@ -198,11 +198,11 @@ class AssignFieldStmt(Stmt):
         return res
 
 class CallStmt(Stmt):
-    callExp:'CallExp'
-    def __init__(self, callExp:'CallExp') -> None:
-        self.callExp = callExp
+    exp:'CallExp'
+    def __init__(self, exp:'CallExp') -> None:
+        self.exp = exp
     def pprint(self):
-        res = f'    {self.callExp.pprint()};'
+        res = f'    {self.exp.pprint()};'
         return res
 
 class ReturnStmt(Stmt):
@@ -234,6 +234,7 @@ class RelExp(Exp):
 class CallExp(Exp):
     methodId:str
     args:'list[str]'
+    items:'list[str]' # same as args, for easier handling of exp
     def __init__(self, methodId:str, args:'list[str]') -> None:
         self.methodId = methodId
         self.args = args
@@ -262,6 +263,18 @@ class Generator:
         self.nextLabelNum = 0
         self.nextTempIdNum = 0
         self.methodMap = {}
+
+
+    def gen(self) -> Program:
+        """
+        Entrypoint
+
+        Returns a data structure representing IR3
+        """
+        self.genProgram()
+        self.optimize()
+        self.backpatch()
+        return self.program
 
     ################################################################################################
 
@@ -319,61 +332,148 @@ class Generator:
     def printIR3(self):
         print(self.program.pprint())
 
-    def trimLabels(self):
+    def optimize(self):
         
         for m in self.program.cMtdList:
-            newLabelMap = {}
-            stmts = m.mdBody.stmts
-            for i in range(len(stmts)):
-                if isinstance(stmts[i], LabelStmt) and \
-                   i + 1 < len(stmts) and isinstance(stmts[i+1], GotoStmt):
-                   newLabelMap[stmts[i].labelNum] = stmts[i+1].labelNum
-            for i in range(len(stmts)):
-                if isinstance(stmts[i], GotoStmt) or isinstance(stmts[i], IfStmt):
-                    stmts[i].labelNum = self.getLeaf(newLabelMap, stmts[i].labelNum)
+            self.trimConsecutiveHopsAndLabels(m)
+            self.trimUnusedLabels(m)
 
-
-            usedLabels = set()
-            for s in m.mdBody.stmts:
-                if isinstance(s, IfStmt) or isinstance(s, GotoStmt):
-                    usedLabels.add(s.labelNum)
-
-            # Trim unused LabelStmt
-            n = len(m.mdBody.stmts)
-            i = 0
-            while i < n:
-                if isinstance(m.mdBody.stmts[i], LabelStmt):
-                    if m.mdBody.stmts[i].labelNum not in usedLabels:
-                        m.mdBody.stmts.pop(i)
-                        n -= 1
-                    else:
-                        i += 1
-                else:
-                    i += 1
-        
-            # Trim unreachable GotoStmt
-            n = len(m.mdBody.stmts)
-            i = 0
-            isPrevStmtGoto = False
-            while i < n:
-                if isinstance(m.mdBody.stmts[i], GotoStmt):
-                    if isPrevStmtGoto:
-                        m.mdBody.stmts.pop(i)
-                        n -= 1
-                    else:
-                        isPrevStmtGoto = True
-                        i += 1
-                else:
-                    isPrevStmtGoto = False
-                    i += 1
+            self.trimUnreachableCode(m)
+            self.trimUnusedLabels(m)
             
+            n = len(m.mdBody.stmts) + 1
+            while len(m.mdBody.stmts) != n:
+                n = len(m.mdBody.stmts)
+                self.trimUnusedIf(m)
+                self.trimUnusedGoto(m)
+                self.trimConsecutiveHopsAndLabels(m)
+                self.trimUnreachableCode(m)
+                self.trimUnusedLabels(m)
+
+
+    
+    def trimConsecutiveHopsAndLabels(self, m:'CMtd'):
+        """
+        Trim consecutive hops and adjacent labels
+
+        goto 1 --> update to 2
+        L1:
+        goto 2
+        L2:
+
+        L3: --> trim
+        L4:
+        """
+        newLabelMap = {}
+        stmts = m.mdBody.stmts
+        n = len(stmts)
+        for i in range(n):
+            if isinstance(stmts[i], LabelStmt) and \
+                i + 1 < n and \
+                (isinstance(stmts[i+1], GotoStmt) or isinstance(stmts[i+1], LabelStmt)):
+                newLabelMap[stmts[i].labelNum] = stmts[i+1].labelNum
+        for i in range(n):
+            if isinstance(stmts[i], GotoStmt) or isinstance(stmts[i], IfStmt):
+                stmts[i].labelNum = self.getLeaf(newLabelMap, stmts[i].labelNum)
+
     def getLeaf(self, map, id):
         while id in map:
             id = map[id]
         return id
 
+    def trimUnusedLabels(self, m:'CMtd'):
+        """
+        Remove labels are never referenced in any goto stmts at all
+        """
+        usedLabels = set()
+        for s in m.mdBody.stmts:
+            if isinstance(s, IfStmt) or isinstance(s, GotoStmt):
+                usedLabels.add(s.labelNum)
+
+        n = len(m.mdBody.stmts)
+        i = 0
+        while i < n:
+            if isinstance(m.mdBody.stmts[i], LabelStmt):
+                if m.mdBody.stmts[i].labelNum not in usedLabels:
+                    m.mdBody.stmts.pop(i)
+                    n -= 1
+                else:
+                    i += 1
+            else:
+                i += 1
+    
+    def trimUnreachableCode(self, m:'CMtd'):
+        """
+        Trim all stmts that come after `goto` but before any `label`
+        goto 2;
+        x = 1; --> trim
+        x = 2; --> trim
+        x = 3; --> trim
+        L2:
+        """
+        n = len(m.mdBody.stmts)
+        i = 0
+        isUnreachable = False
+        while i < n:
+            if not isUnreachable and (isinstance(m.mdBody.stmts[i], GotoStmt) or isinstance(m.mdBody.stmts[i], ReturnStmt)):
+                i += 1
+                isUnreachable = True
+
+            elif not isUnreachable:
+                i += 1
+
+            elif isUnreachable:
+                if not isinstance(m.mdBody.stmts[i], LabelStmt):
+                    m.mdBody.stmts.pop(i)
+                    n -= 1
+                else:
+                    isUnreachable = False
+                    i += 1
+    
+    def trimUnusedIf(self, m:'CMtd'):
+        """
+        Trim all if-goto statements that makes no difference
+        if (a < b) goto L2 --> remove
+        goto L2
+        """
+        stmts = m.mdBody.stmts
+        n = len(stmts)
+        i = 0
+        while i < n:
+            if isinstance(stmts[i], IfStmt):
+                label = stmts[i].labelNum
+                if i+1 < n and isinstance(stmts[i+1], GotoStmt) and stmts[i+1].labelNum == label:
+                    stmts.pop(i)
+                    n -= 1
+                    continue
+            i += 1
+
+    def trimUnusedGoto(self, m:'CMtd'):
+        """
+        Trim all goto statements that makes no difference.
+        Cannot trim the label as it might be referenced.
+
+            goto L2
+        L2:
+            ...
+        """
+        stmts = m.mdBody.stmts
+        n = len(stmts)
+        i = 0
+        while i < n:
+            if isinstance(stmts[i], GotoStmt):
+                label = stmts[i].labelNum
+                if i+1 < n and isinstance(stmts[i+1], LabelStmt) and stmts[i+1].labelNum == label:
+                    stmts.pop(i)
+                    n -= 1
+                    continue
+            i += 1
+                
 
     def backpatch(self):
+        """
+        More of updating labels so that they grow in increasing manner
+        """
         self.nextLabelNum = 0        
 
         oldToNewLabel = {}
@@ -419,9 +519,9 @@ class Generator:
                         if s.exp.items[i] in oldToNewTempId:
                             s.exp.items[i] = oldToNewTempId[s.exp.items[i]]
                 if isinstance(s, CallStmt):
-                    for i in range(len(s.callExp.args)):
-                        if s.callExp.args[i] in oldToNewTempId:
-                            s.callExp.args[i] = oldToNewTempId[s.callExp.args[i]]
+                    for i in range(len(s.exp.args)):
+                        if s.exp.args[i] in oldToNewTempId:
+                            s.exp.args[i] = oldToNewTempId[s.exp.args[i]]
                 if isinstance(s, IfStmt):
                     for i in range(len(s.relExp.items)):
                         if s.relExp.items[i] in oldToNewTempId:
@@ -620,8 +720,7 @@ class Generator:
             stmtList += [AssignIdStmt(s.varId, Exp(e1Addr))]
         else: #TODO: Need to review field assignment (how to update value AT THE ADDRESS)
             e0 = self.nextTempId()
-            stmtList += [AssignTypeIdStmt(s.resultExp.type, e0, Exp("this", ".", s.varId))]
-            stmtList += [AssignIdStmt(e0, Exp(e1Addr))]
+            stmtList += [AssignFieldStmt("this", s.varId, Exp(e1Addr))]
         return stmtList
 
     def genStmtsFromFieldAssignStmt(self, s:StmtFieldAssignNode, attr:dict):
@@ -724,12 +823,12 @@ class Generator:
 
             e1Stmts, e1Addr = self.genStmtsFromExp(e.firstExp, expAttr)
             e2Stmts, e2Addr = self.genStmtsFromExp(e.secondExp, expAttr)
-            if re.match(r"[0-9]+", e1Addr) is not None or re.match(r"\".*\"", e1Addr) is not None:
-                e0 = self.nextTempId()
-                stmt = AssignTypeIdStmt(e.type, e0, Exp(str(e1Addr), op, e2Addr))
-                e1Addr = e0
-            else:
-                stmt = AssignIdStmt(e1Addr, Exp(e1Addr, op, e2Addr))
+            # if re.match(r"[0-9]+", e1Addr) is not None or re.match(r"\".*\"", e1Addr) is not None:
+            e0 = self.nextTempId()
+            stmt = AssignTypeIdStmt(e.type, e0, Exp(str(e1Addr), op, e2Addr))
+            e1Addr = e0
+            # else:
+            #     stmt = AssignIdStmt(e1Addr, Exp(e1Addr, op, e2Addr))
             stmtList += e1Stmts
             stmtList += e2Stmts
             stmtList += [stmt]
@@ -739,12 +838,12 @@ class Generator:
             e1Stmts, e1Addr = self.genStmtsFromExp(e.exp, expAttr)
             stmtList += e1Stmts
             if e.isNegated:
-                if re.match(r"[0-9]+", e1Addr) is not None:
-                    e0 = self.nextTempId()
-                    stmt = AssignTypeIdStmt(e.type, e0, Exp("-", str(e1Addr)))
-                    e1Addr = e0
-                else:
-                    stmt = AssignIdStmt(e1Addr, Exp("-", e1Addr))
+                # if re.match(r"[0-9]+", e1Addr) is not None:
+                e0 = self.nextTempId()
+                stmt = AssignTypeIdStmt(e.type, e0, Exp("-", str(e1Addr)))
+                e1Addr = e0
+                # else:
+                #     stmt = AssignIdStmt(e1Addr, Exp("-", e1Addr))
                 stmtList += [stmt]
             return stmtList, e1Addr
 
@@ -813,7 +912,7 @@ class Generator:
             return stmtList, e0
             
         if isinstance(e, ExpNullNode):
-            return stmtList, "NULL"
+            return stmtList, "null"
 
 
     def genStmtsFromBoolOrExp(self, b:ExpNode, attr:dict):
@@ -927,7 +1026,5 @@ if __name__ == '__main__':
     c.checkTypes()
 
     g = Generator(ast)
-    g.genProgram()
-    g.trimLabels()
-    g.backpatch()
+    g.gen()
     g.printIR3()
