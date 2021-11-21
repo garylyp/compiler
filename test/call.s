@@ -23,10 +23,10 @@ main:
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
     mov        a1, a2              @ [VarAssign] c = _e0
-    mov        v1, #0              @ [FieldAssign] v1 = 0
-    str        v1, [a1, #0]        @ [FieldAssign] c.id = v1 (temp reg)
-    mov        v1, #5              @ [FieldAssign] v1 = 5
-    str        v1, [a1, #4]        @ [FieldAssign] c.val = v1 (temp reg)
+    mov        v5, #0              @ [FieldAssign] v5 = 0
+    str        v5, [a1, #0]        @ [FieldAssign] c.id = v5 (temp reg)
+    mov        v5, #5              @ [FieldAssign] v5 = 5
+    str        v5, [a1, #4]        @ [FieldAssign] c.val = v5 (temp reg)
     mov        v1, a1              @ mov value from a1 to v1
     str        a1, [fp,#0]         @ st a1 to stack before func call
     str        a2, [fp,#-4]        @ st a2 to stack before func call
@@ -39,8 +39,8 @@ main:
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
     mov        a1, a2              @ [VarAssign] p = _e1
-    mov        v4, v1              @ [FieldAssign] v4 = c
-    str        v4, [a1, #0]        @ [FieldAssign] p.c1 = v4 (temp reg)
+    mov        v5, v1              @ [FieldAssign] v5 = c
+    str        v5, [a1, #0]        @ [FieldAssign] p.c1 = v5 (temp reg)
     mov        v2, a1              @ mov value from a1 to v2
     mov        a1, v1              @ mov value from v1 to a1
     str        a1, [fp,#0]         @ st a1 to stack before func call
@@ -56,8 +56,8 @@ main:
     ldr        a2, [fp,#-4]        @ ld a2 original val from stack after func call
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
-    mov        v4, v1              @ [FieldAssign] v4 = _e2
-    str        v4, [v2, #4]        @ [FieldAssign] p.c2 = v4 (temp reg)
+    mov        v5, v1              @ [FieldAssign] v5 = _e2
+    str        v5, [v2, #4]        @ [FieldAssign] p.c2 = v5 (temp reg)
     ldr        v1, [v2, #4]        @ [VarAssign] _e3 = p.c2
     mov        a1, v1              @ mov value from v1 to a1
     str        a1, [fp,#0]         @ st a1 to stack before func call
@@ -117,10 +117,10 @@ Clone_0:
     mov        a1, a3              @ [VarAssign] c = _e0
     ldr        a3, [v1, #0]        @ [VarAssign] _e1 = this.id
     add        a4, a3, a2          @ [VarAssign] _e2 = _e1 + powdiff
-    mov        v4, a4              @ [FieldAssign] v4 = _e2
-    str        v4, [a1, #0]        @ [FieldAssign] c.id = v4 (temp reg)
-    mov        v4, #5              @ [FieldAssign] v4 = 5
-    str        v4, [a1, #4]        @ [FieldAssign] c.val = v4 (temp reg)
+    mov        v5, a4              @ [FieldAssign] v5 = _e2
+    str        v5, [a1, #0]        @ [FieldAssign] c.id = v5 (temp reg)
+    mov        v5, #5              @ [FieldAssign] v5 = 5
+    str        v5, [a1, #4]        @ [FieldAssign] c.val = v5 (temp reg)
     mov        a1, a1              @ return c
     b          .Clone_0_exit
 .Clone_0_exit:
@@ -149,11 +149,11 @@ Clone_2:
     bgt        .L1
     b          .L2
 .L1:
-    mov        v1, #10
-    mul        a2, a4, v1          @ [VarAssign] _e2 = res * 10
+    mov        v5, #10
+    mul        a2, a4, v5          @ [VarAssign] _e2 = res * 10
     mov        a4, a2              @ [VarAssign] res = _e2
-    mov        v1, #1
-    sub        a2, a3, v1          @ [VarAssign] _e3 = n - 1
+    mov        v5, #1
+    sub        a2, a3, v5          @ [VarAssign] _e3 = n - 1
     mov        a3, a2              @ [VarAssign] n = _e3
     b          .L0
 .L2:

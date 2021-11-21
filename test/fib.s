@@ -54,8 +54,8 @@ main:
     ldr        a2, [fp,#-4]        @ ld a2 original val from stack after func call
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
-    mov        a2, #1
-    add        a1, v2, a2          @ [VarAssign] _e2 = i + 1
+    mov        v3, #1
+    add        a1, v2, v3          @ [VarAssign] _e2 = i + 1
     mov        v2, a1              @ [VarAssign] i = _e2
     b          .L0
 .L2:
@@ -73,10 +73,10 @@ Fib_0:
     mov        a1, a3              @ return _e0
     b          .Fib_0_exit
 .L4:
-    mov        v2, #0              @ [FieldAssign] v2 = 0
-    str        v2, [a1, #0]        @ [FieldAssign] this.a = v2 (temp reg)
-    mov        v2, #1              @ [FieldAssign] v2 = 1
-    str        v2, [a1, #4]        @ [FieldAssign] this.b = v2 (temp reg)
+    mov        v3, #0              @ [FieldAssign] v3 = 0
+    str        v3, [a1, #0]        @ [FieldAssign] this.a = v3 (temp reg)
+    mov        v3, #1              @ [FieldAssign] v3 = 1
+    str        v3, [a1, #4]        @ [FieldAssign] this.b = v3 (temp reg)
 .L5:
     cmp        a2, #0              @ if ( x > 0 ) goto .L6
     bgt        .L6
@@ -87,12 +87,12 @@ Fib_0:
     ldr        a3, [a1, #0]        @ [VarAssign] _e2 = this.a
     ldr        v1, [a1, #4]        @ [VarAssign] _e3 = this.b
     add        v2, a3, v1          @ [VarAssign] _e4 = _e2 + _e3
-    mov        a3, v2              @ [FieldAssign] a3 = _e4
-    str        a3, [a1, #4]        @ [FieldAssign] this.b = a3 (temp reg)
-    mov        v2, a4              @ [FieldAssign] v2 = temp
-    str        v2, [a1, #0]        @ [FieldAssign] this.a = v2 (temp reg)
-    mov        v2, #1
-    sub        a4, a2, v2          @ [VarAssign] _e5 = x - 1
+    mov        v3, v2              @ [FieldAssign] v3 = _e4
+    str        v3, [a1, #4]        @ [FieldAssign] this.b = v3 (temp reg)
+    mov        v3, a4              @ [FieldAssign] v3 = temp
+    str        v3, [a1, #0]        @ [FieldAssign] this.a = v3 (temp reg)
+    mov        v3, #1
+    sub        a4, a2, v3          @ [VarAssign] _e5 = x - 1
     mov        a2, a4              @ [VarAssign] x = _e5
     b          .L5
 .L7:

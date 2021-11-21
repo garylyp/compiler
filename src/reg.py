@@ -603,6 +603,7 @@ class RegAllocator:
             return
         # Have available registers
         if mustBeV and self.regPool:
+            reg = None
             i = len(self.regPool) - 1
             while i >= 0:
                 if "v" in self.regPool[i]:
@@ -610,9 +611,10 @@ class RegAllocator:
                     self.regPool.remove(reg)
                     break
                 i -= 1
-            self.varToReg[v] = reg
-            self.regToVar[reg] = v
-            self.usedVRegs.add(reg)
+            if reg is not None:
+                self.varToReg[v] = reg
+                self.regToVar[reg] = v
+                self.usedVRegs.add(reg)
             return
         if self.regPool:
             reg = self.regPool.pop()
@@ -832,8 +834,3 @@ def getUnusedReg(usedReg, mustBeV = False) -> 'str':
         allRegs = set(["_v5", "_v4", "_v3", "_v2", "_v1", "_a4", "_a3", "_a2", "_a1"])
     unusedRegs = allRegs - usedRegs
     return unusedRegs.pop()
-
-
-def isVarLocal(cMtd:'CMtd', v:str) -> bool:
-    actuals = [a.id for a in cMtd.mdBody.varDecl]
-    return v in actuals

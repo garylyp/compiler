@@ -10,11 +10,11 @@ LC0:
     .global     main
     .type       main, %function
 main:
-    stmfd      sp!, {fp,lr,v1}
-    add        fp, sp, #24
-    mov        v2, #1
+    stmfd      sp!, {fp,lr}
+    add        fp, sp, #20
+    mov        a2, #1
     mov        a4, #2
-    add        a1, v2, a4          @ [VarAssign] _e0 = 1 + 2
+    add        a1, a2, a4          @ [VarAssign] _e0 = 1 + 2
     mov        a4, #3
     add        a2, a1, a4          @ [VarAssign] _e1 = _e0 + 3
     mov        a4, #4
@@ -51,8 +51,7 @@ main:
     add        a2, a1, a4          @ [VarAssign] _e17 = _e16 + 19
     mov        a4, #20
     add        a1, a2, a4          @ [VarAssign] _e18 = _e17 + 20
-    mov        v1, a1              @ [VarAssign] a = _e18
-    mov        a2, v1              @ mov value from v1 to a2
+    mov        a2, a1              @ [VarAssign] a = _e18
     str        a1, [fp,#0]         @ st a1 to stack before func call
     str        a2, [fp,#-4]        @ st a2 to stack before func call
     str        a3, [fp,#-8]        @ st a3 to stack before func call
@@ -63,5 +62,5 @@ main:
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
 .main_exit:
-    ldmfd      sp!, {fp,pc,v1}
+    ldmfd      sp!, {fp,pc}
 

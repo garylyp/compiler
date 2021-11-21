@@ -117,9 +117,9 @@ main:
     ldr        a2, [fp,#-4]        @ ld a2 original val from stack after func call
     ldr        a3, [fp,#-8]        @ ld a3 original val from stack after func call
     ldr        a4, [fp,#-12]       @ ld a4 original val from stack after func call
-    mov        a4, v2              @ mov value from v2 to a4
-    mov        v2, a2              @ mov value from a2 to v2
-    mov        a2, a4              @ mov value from a4 to a2
+    mov        v1, a2              @ mov value from a2 to v1
+    mov        a2, v2              @ mov value from v2 to a2
+    mov        v2, v1              @ mov value from v1 to v2
     str        a1, [fp,#0]         @ st a1 to stack before func call
     str        a2, [fp,#-4]        @ st a2 to stack before func call
     str        a3, [fp,#-8]        @ st a3 to stack before func call
